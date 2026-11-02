@@ -75,7 +75,7 @@ const fromTrip = (trip) => ({
 // "25 ton × ₹900" or "Fixed"
 const sumText = (basis, quantity, rate) => {
   if (basis === 'fixed') return 'Fixed amount';
-  if (basis === 'per_trip' && toNumber(quantity) === 1) return 'One trip';
+  if (basis === 'per_trip' && toNumber(quantity) === 1) return 'Total Amount';
   const unit = getBasisUnit(basis);
   const qty = toNumber(quantity);
   const unitLabel = unit === 'km' || qty === 1 ? unit : `${unit}s`;
