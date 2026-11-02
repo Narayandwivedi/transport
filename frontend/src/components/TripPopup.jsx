@@ -116,12 +116,12 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     return next;
   });
 
-  // A new way of charging starts clean: no route, a fresh quantity and rate, and the vehicle's own hire terms
+  // A new way of charging keeps the route typed but starts a fresh quantity and rate, with the vehicle's own hire terms
   const changeBasis = (nextBasis) => {
     if (nextBasis === basis) return;
     setForm((prev) => {
       const quantity = nextBasis === 'per_trip' ? '1' : '';
-      return { ...prev, billingBasis: nextBasis, from: '', to: '', quantity, rate: '', distanceKm: '', ...hireDefaults(vehicle, nextBasis, quantity) };
+      return { ...prev, billingBasis: nextBasis, quantity, rate: '', distanceKm: '', ...hireDefaults(vehicle, nextBasis, quantity) };
     });
   };
 
@@ -182,7 +182,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const margin = amount - hireAmount;
 
   const handleSubmit = async () => {
-    if (basis === 'per_trip' && (!String(form.from || '').trim() || !String(form.to || '').trim())) {
+    if (!String(form.from || '').trim() || !String(form.to || '').trim()) {
       toast.error('Enter the route: From (location A) → To (location B)');
       return;
     }
@@ -211,8 +211,6 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const hireUnit = getBasisUnit(form.hireBasis);
   const quantityUnit = QUANTITY_UNITS[basis] || unit;
   const hireQuantityUnit = QUANTITY_UNITS[form.hireBasis] || hireUnit;
-  // Per trip always asks From → To
-  const showTypedRoute = basis === 'per_trip';
   // One entry is one trip, so per trip never asks how many (an old trip saved with more still shows it)
   const askQuantity = basis !== 'per_trip' || toNumber(form.quantity) !== 1;
   // The owner's tons / km are asked only when the party's charge does not give them, and never per trip
@@ -293,17 +291,16 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             </div>
           )}
 
-          {showTypedRoute && (
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-              <Field label="From" required={basis === 'per_trip'} htmlFor="trip-from">
-                <input id="trip-from" className="input" value={form.from} onChange={(event) => typeRoute('from', event.target.value)} placeholder="Location A" autoComplete="off" required={basis === 'per_trip'} />
-              </Field>
-              <ArrowRight size={16} className="mb-3 text-slate-400" />
-              <Field label="To" required={basis === 'per_trip'} htmlFor="trip-to">
-                <input id="trip-to" className="input" value={form.to} onChange={(event) => typeRoute('to', event.target.value)} placeholder="Location B" autoComplete="off" required={basis === 'per_trip'} />
-              </Field>
-            </div>
-          )}
+          {/* Every trip records where the vehicle went: From → To */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+            <Field label="From" required htmlFor="trip-from">
+              <input id="trip-from" className="input" value={form.from} onChange={(event) => typeRoute('from', event.target.value)} placeholder="Location A" autoComplete="off" required />
+            </Field>
+            <ArrowRight size={16} className="mb-3 text-slate-400" />
+            <Field label="To" required htmlFor="trip-to">
+              <input id="trip-to" className="input" value={form.to} onChange={(event) => typeRoute('to', event.target.value)} placeholder="Location B" autoComplete="off" required />
+            </Field>
+          </div>
 
           <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-1 sm:grid-cols-3' : askQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {/* Rate first, then how much */}
