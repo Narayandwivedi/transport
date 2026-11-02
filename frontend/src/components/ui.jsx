@@ -71,10 +71,18 @@ export function PanelHeader({ title, count, search, onSearch, searchPlaceholder 
 }
 
 // Label + control in one block
-export function Field({ label, htmlFor, hint, className = '', children }) {
+// A labelled form field. required: shows a red * after the label. action: a small link at the label's right (e.g. "+ Add").
+export function Field({ label, htmlFor, hint, required = false, action, className = '', children }) {
   return (
     <div className={className}>
-      {label && <label className="label" htmlFor={htmlFor}>{label}</label>}
+      {label && (
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="label mb-0" htmlFor={htmlFor}>
+            {label}{required && <span className="text-red-500"> *</span>}
+          </label>
+          {action}
+        </div>
+      )}
       {children}
       {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
     </div>

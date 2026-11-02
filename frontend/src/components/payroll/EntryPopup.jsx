@@ -6,6 +6,7 @@ import { PAYMENT_MODE_OPTIONS } from '../../utils/constants';
 import { formatMonth, formatRupees, idOf, toDayInput, todayInput } from '../../utils/format';
 import { ENTRY_TYPES, getRoleLabel } from '../../utils/payroll';
 import FormPopup from '../FormPopup';
+import FormSection, { FieldGrid } from '../FormSection';
 import { VehicleSelect } from '../Pickers';
 import { Field, MoneyInput } from '../ui';
 
@@ -61,7 +62,7 @@ export default function EntryPopup({ entry = null, employees, month, preset = {}
   const owed = balances[form.employeeId];
 
   return (
-    <FormPopup title={entry ? 'Edit Entry' : type.label} subtitle={type.hint} onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving} maxWidth="max-w-lg">
+    <FormPopup title={entry ? 'Edit Entry' : type.label} subtitle={type.hint} onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving} maxWidth="max-w-2xl">
       {!entry && (
         <div className="grid grid-cols-3 gap-1.5 md:grid-cols-5">
           {Object.entries(ENTRY_TYPES).map(([key, option]) => (
@@ -76,40 +77,46 @@ export default function EntryPopup({ entry = null, employees, month, preset = {}
           ))}
         </div>
       )}
-      <Field label="Employee" hint={owed !== undefined ? (owed >= 0 ? `Salary owed till now: ${formatRupees(owed)}` : `Advance outstanding: ${formatRupees(-owed)}`) : ''}>
-        <select className="input" value={form.employeeId} onChange={(event) => pickEmployee(event.target.value)} required>
-          <option value="" disabled>Select employee</option>
-          {employees.filter((employee) => employee.isActive || employee._id === form.employeeId).map((employee) => (
-            <option key={employee._id} value={employee._id}>{employee.name} · {getRoleLabel(employee.role)}</option>
-          ))}
-        </select>
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Amount">
-          <MoneyInput value={form.amount} onChange={(value) => set('amount', value)} required />
+      <FormSection number={1} title="Employee & Amount" tone="blue">
+        <Field label="Employee" required hint={owed !== undefined ? (owed >= 0 ? `Salary owed till now: ${formatRupees(owed)}` : `Advance outstanding: ${formatRupees(-owed)}`) : ''}>
+          <select className="input" value={form.employeeId} onChange={(event) => pickEmployee(event.target.value)} required>
+            <option value="" disabled>Select employee</option>
+            {employees.filter((employee) => employee.isActive || employee._id === form.employeeId).map((employee) => (
+              <option key={employee._id} value={employee._id}>{employee.name} · {getRoleLabel(employee.role)}</option>
+            ))}
+          </select>
         </Field>
-        <Field label="Date" htmlFor="pe-date">
-          <input id="pe-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
-        </Field>
-        <Field label="Salary Month" hint={formatMonth(form.month)}>
-          <input type="month" className="input" value={form.month} onChange={(event) => event.target.value && set('month', event.target.value)} required />
-        </Field>
-        {type.paid ? (
-          <Field label="Paid By">
-            <select className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
-              {PAYMENT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+        <FieldGrid cols={3}>
+          <Field label="Amount" required>
+            <MoneyInput value={form.amount} onChange={(value) => set('amount', value)} required />
           </Field>
-        ) : <span />}
-      </div>
+          <Field label="Date" required htmlFor="pe-date">
+            <input id="pe-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
+          </Field>
+          <Field label="Salary Month" required hint={formatMonth(form.month)}>
+            <input type="month" className="input" value={form.month} onChange={(event) => event.target.value && set('month', event.target.value)} required />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
       {type.paid && (
-        <Field label="Book Expense To" hint="Counts in this vehicle's profit">
-          <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => set('vehicleId', value)} allowEmpty emptyLabel="No vehicle (general expense)" includeSold />
-        </Field>
+        <FormSection number={2} title="Payment" tone="emerald">
+          <FieldGrid cols={2}>
+            <Field label="Paid By">
+              <select className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
+                {PAYMENT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Book Expense To" hint="Counts in this vehicle's profit">
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => set('vehicleId', value)} allowEmpty emptyLabel="No vehicle (general expense)" includeSold />
+            </Field>
+          </FieldGrid>
+        </FormSection>
       )}
-      <Field label="Notes" htmlFor="pe-notes">
-        <input id="pe-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder={form.type === 'deduction' ? 'e.g. challan, diesel short' : ''} />
-      </Field>
+
+      <FormSection number={type.paid ? 3 : 2} title="Notes" tone="slate">
+        <textarea id="pe-notes" rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder={form.type === 'deduction' ? 'e.g. challan, diesel short' : 'Any additional notes…'} />
+      </FormSection>
     </FormPopup>
   );
 }

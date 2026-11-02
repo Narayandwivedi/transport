@@ -5,7 +5,7 @@ import useMasters from '../utils/useMasters';
 import { BILLING_BASIS_OPTIONS, VEHICLE_CATEGORY_OPTIONS, getBasisUnit } from '../utils/constants';
 import { idOf, todayInput } from '../utils/format';
 import FormPopup from './FormPopup';
-import FormSection from './FormSection';
+import FormSection, { AddLink } from './FormSection';
 import PartyPopup from './PartyPopup';
 import RouteRateFields from './RouteRateFields';
 import { PartySelect } from './Pickers';
@@ -54,8 +54,8 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
     <>
       <FormPopup title={vehicle ? 'Edit Vehicle' : 'Add Vehicle'} subtitle="Your own truck or a hired one" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
         <FormSection number={1} title="Vehicle" tone="blue">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Vehicle Number" htmlFor="veh-no">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <Field label="Vehicle Number" required htmlFor="veh-no">
               <input id="veh-no" className="input font-mono uppercase" value={form.vehicleNo} onChange={(event) => set('vehicleNo', event.target.value.toUpperCase())} placeholder="CG04AB1234" required autoFocus />
             </Field>
             <Field label="Type" htmlFor="veh-cat">
@@ -81,13 +81,10 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
 
         {isHired && (
           <FormSection number={2} title="Hired From" tone="amber" hint="For monthly rent, leave the rate empty and add it in Monthly Hire.">
-            <Field label="Vehicle Owner">
-              <div className="flex gap-2">
-                <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['transporter']} required />
-                <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setAddingParty(true)}>+ New</button>
-              </div>
+            <Field label="Vehicle Owner" required action={<AddLink onClick={() => setAddingParty(true)}>New Owner</AddLink>}>
+              <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['transporter']} required />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               <Field label="Pay Owner">
                 <select className="input" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)}>
                   <option value="">Monthly / no fixed rate</option>
@@ -115,7 +112,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
         </FormSection>
 
         <FormSection number={isHired ? 4 : 3} title="Details" tone="slate">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
             <Field label="Make" htmlFor="veh-make">
               <input id="veh-make" className="input" value={form.make} onChange={(event) => set('make', event.target.value)} placeholder="Tata / Ashok Leyland" />
             </Field>
@@ -146,7 +143,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
             )}
           </div>
           <Field label="Notes" htmlFor="veh-notes">
-            <input id="veh-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} />
+            <textarea id="veh-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Any additional notes…" />
           </Field>
         </FormSection>
       </FormPopup>

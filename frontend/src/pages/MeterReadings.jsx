@@ -7,6 +7,7 @@ import useMasters from '../utils/useMasters';
 import { formatDate, formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
 import { closingOf, openingOf, runOf } from '../utils/meter';
 import FormPopup from '../components/FormPopup';
+import FormSection, { FieldGrid } from '../components/FormSection';
 import StatCard from '../components/StatCard';
 import { VehicleSelect } from '../components/Pickers';
 import { EmptyState, ErrorBox, Field, Loading, MoneyInput, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
@@ -75,8 +76,11 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
       onClose={onClose}
       onSubmit={handleSubmit}
       submitDisabled={saving}
+      maxWidth="max-w-xl"
     >
-      <Field label="Vehicle">
+      <FormSection number={1} title="Vehicle & Date" tone="blue">
+      <FieldGrid cols={2}>
+      <Field label="Vehicle" required>
         <VehicleSelect
           vehicles={vehicles}
           value={form.vehicleId}
@@ -87,11 +91,14 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
           required
         />
       </Field>
-      <Field label="Date" htmlFor="mr-date">
+      <Field label="Date" required htmlFor="mr-date">
         <input id="mr-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Opening">
+      </FieldGrid>
+      </FormSection>
+      <FormSection number={2} title="Odometer" tone="sky">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
+        <Field label="Opening" required>
           <MoneyInput
             prefix=""
             suffix="km"
@@ -109,7 +116,7 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
         </Field>
       </div>
 
-      <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 ring-1 ring-slate-200">
+      <div className="space-y-1 rounded-lg bg-white/70 px-3 py-2 text-xs text-slate-600 ring-1 ring-sky-200">
         {previous ? (
           <p>
             Last entry {formatDate(previous.date)}:{' '}
@@ -136,10 +143,11 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
           </span>
         </p>
       </div>
+      </FormSection>
 
-      <Field label="Notes" htmlFor="mr-notes">
-        <input id="mr-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Optional" />
-      </Field>
+      <FormSection number={3} title="Notes" tone="slate">
+        <textarea id="mr-notes" rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Optional" />
+      </FormSection>
     </FormPopup>
   );
 }

@@ -4,7 +4,7 @@ import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
 import { formatRupees, idOf, toDayInput, todayInput } from '../utils/format';
 import FormPopup from './FormPopup';
-import FormSection from './FormSection';
+import FormSection, { AddLink, FieldGrid } from './FormSection';
 import Segmented from './Segmented';
 import PartyPopup from './PartyPopup';
 import VehiclePopup from './VehiclePopup';
@@ -78,33 +78,29 @@ export default function ContractPopup({ contract = null, direction = 'hire_in', 
           />
         )}
         <FormSection number={1} title="Vehicle & Party" tone={form.direction === 'hire_in' ? 'amber' : 'emerald'}>
-          <Field label="Vehicle" hint={form.direction === 'hire_in' ? 'Only vehicles added as "Hired Vehicle" show here' : 'Your own vehicle, or one you have hired in'}>
-            <div className="flex gap-2">
+          <FieldGrid cols={2}>
+            <Field label="Vehicle" required action={<AddLink onClick={() => setAdding('vehicle')}>New Vehicle</AddLink>} hint={form.direction === 'hire_in' ? 'Only vehicles added as "Hired Vehicle" show here' : 'Your own vehicle, or one you have hired in'}>
               <VehicleSelect vehicles={vehicleChoices} value={form.vehicleId} onChange={pickVehicle} required />
-              <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setAdding('vehicle')}>+ New</button>
-            </div>
-          </Field>
-          <Field label={info.party}>
-            <div className="flex gap-2">
+            </Field>
+            <Field label={info.party} required action={<AddLink onClick={() => setAdding('party')}>New Party</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={info.prefer} required />
-              <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setAdding('party')}>+ New</button>
-            </div>
-          </Field>
+            </Field>
+          </FieldGrid>
         </FormSection>
 
         <FormSection number={2} title="Rent & Period" tone="blue">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            <Field label="Monthly Rent" hint={perDay ? `≈ ${formatRupees(Math.round(perDay))} a day` : ''}>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+            <Field label="Monthly Rent" required hint={perDay ? `≈ ${formatRupees(Math.round(perDay))} a day` : ''}>
               <MoneyInput value={form.monthlyRate} onChange={(value) => set('monthlyRate', value)} suffix="/month" required />
             </Field>
-            <Field label="Start Date" htmlFor="ct-start">
+            <Field label="Start Date" required htmlFor="ct-start">
               <input id="ct-start" type="date" className="input" value={form.startDate} onChange={(event) => set('startDate', event.target.value)} required />
             </Field>
             <Field label="End Date" htmlFor="ct-end" hint="Empty: running until stopped">
               <input id="ct-end" type="date" className="input" value={form.endDate || ''} onChange={(event) => set('endDate', event.target.value)} min={form.startDate} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             <Field label="Diesel Paid By">
               <select className="input" value={form.dieselBy} onChange={(event) => set('dieselBy', event.target.value)}>
                 <option value="hirer">Hirer (whoever takes the vehicle)</option>
@@ -119,7 +115,7 @@ export default function ContractPopup({ contract = null, direction = 'hire_in', 
             </Field>
           </div>
           <Field label="Notes" htmlFor="ct-notes">
-            <input id="ct-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Site, working hours, terms…" />
+            <textarea id="ct-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Site, working hours, terms…" />
           </Field>
         </FormSection>
       </FormPopup>

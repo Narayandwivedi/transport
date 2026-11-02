@@ -5,7 +5,7 @@ import useMasters from '../utils/useMasters';
 import { MAINTENANCE_PRESETS } from '../utils/constants';
 import { formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
 import FormPopup from './FormPopup';
-import FormSection from './FormSection';
+import FormSection, { FieldGrid } from './FormSection';
 import { VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
@@ -56,10 +56,10 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
   return (
     <FormPopup title={task ? 'Edit Service Schedule' : 'Add Service Schedule'} subtitle="Get an alert when km or days run out" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Service" tone="blue">
-        <Field label="Vehicle" hint={vehicle ? `Meter now: ${formatNumber(vehicle.currentKm, 0)} km` : ''}>
+        <Field label="Vehicle" required hint={vehicle ? `Meter now: ${formatNumber(vehicle.currentKm, 0)} km` : ''}>
           <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
         </Field>
-        <Field label="Service Name" htmlFor="mt-title">
+        <Field label="Service Name" required htmlFor="mt-title">
           <input id="mt-title" className="input" value={form.title} onChange={(event) => set('title', event.target.value)} placeholder="Engine oil change" required />
           {!task && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -78,7 +78,7 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
         </Field>
       </FormSection>
       <FormSection number={2} title="Due Every" tone="amber" hint="Fill one or both. Empty = not checked.">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           <Field label="Every">
             <MoneyInput prefix="" suffix="km" value={form.intervalKm} onChange={(value) => set('intervalKm', value)} />
           </Field>
@@ -99,9 +99,9 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
           </Field>
         </div>
       </FormSection>
-      <Field label="Notes" htmlFor="mt-notes">
-        <input id="mt-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} />
-      </Field>
+      <FormSection number={3} title="Notes" tone="slate">
+        <textarea id="mt-notes" rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Oil grade, filter part no.…" />
+      </FormSection>
     </FormPopup>
   );
 }
@@ -127,24 +127,30 @@ export function DonePopup({ task, onClose, onSaved }) {
   };
 
   return (
-    <FormPopup title="Mark Service Done" subtitle={`${task.title} · ${task.vehicleId?.vehicleNo || ''}`} submitLabel="Done" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Date" htmlFor="done-date">
-          <input id="done-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
-        </Field>
-        <Field label="Odometer">
-          <MoneyInput prefix="" suffix="km" value={form.km} onChange={(value) => set('km', value)} />
-        </Field>
-        <Field label="Cost" hint="Added to the vehicle's expenses">
-          <MoneyInput value={form.cost} onChange={(value) => set('cost', value)} />
-        </Field>
-        <Field label="Garage" htmlFor="done-garage">
-          <input id="done-garage" className="input" value={form.paidTo} onChange={(event) => set('paidTo', event.target.value)} />
-        </Field>
-      </div>
-      <Field label="Notes" htmlFor="done-notes">
-        <input id="done-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} />
-      </Field>
+    <FormPopup title="Mark Service Done" subtitle={`${task.title} · ${task.vehicleId?.vehicleNo || ''}`} submitLabel="Done" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
+      <FormSection number={1} title="When" tone="blue">
+        <FieldGrid cols={2}>
+          <Field label="Date" required htmlFor="done-date">
+            <input id="done-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
+          </Field>
+          <Field label="Odometer" hint="The next due km counts from here">
+            <MoneyInput prefix="" suffix="km" value={form.km} onChange={(value) => set('km', value)} />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+      <FormSection number={2} title="Bill" tone="emerald" hint="The cost is added to the vehicle's expenses">
+        <FieldGrid cols={2}>
+          <Field label="Cost">
+            <MoneyInput value={form.cost} onChange={(value) => set('cost', value)} />
+          </Field>
+          <Field label="Garage" htmlFor="done-garage">
+            <input id="done-garage" className="input" value={form.paidTo} onChange={(event) => set('paidTo', event.target.value)} placeholder="Garage / mechanic" />
+          </Field>
+          <Field label="Notes" htmlFor="done-notes" className="sm:col-span-2">
+            <textarea id="done-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Any additional notes…" />
+          </Field>
+        </FieldGrid>
+      </FormSection>
     </FormPopup>
   );
 }

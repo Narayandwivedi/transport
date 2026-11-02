@@ -52,8 +52,8 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
   return (
     <FormPopup title={employee ? 'Edit Employee' : 'Add Employee'} subtitle="Driver, helper, mechanic or office staff" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Employee" tone="blue">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Field label="Name" htmlFor="emp-name">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          <Field label="Name" required htmlFor="emp-name">
             <input id="emp-name" className="input" value={form.name} onChange={(event) => set('name', event.target.value)} required autoFocus />
           </Field>
           <Field label="Mobile" htmlFor="emp-mobile">
@@ -84,11 +84,11 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Field label={form.salaryType === 'monthly' ? 'Salary' : 'Wage'}>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          <Field label={form.salaryType === 'monthly' ? 'Salary' : 'Wage'} required>
             <MoneyInput value={form.rate} onChange={(value) => set('rate', value)} suffix={`/${SALARY_TYPES[form.salaryType].unit}`} required />
           </Field>
-          <Field label="Joined On" htmlFor="emp-join">
+          <Field label="Joined On" required htmlFor="emp-join">
             <input id="emp-join" type="date" className="input" value={form.joinDate} onChange={(event) => set('joinDate', event.target.value)} required />
           </Field>
           <Field label="Opening Balance" hint="From before this software" className="col-span-2 md:col-span-1">
@@ -104,7 +104,7 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
       </FormSection>
 
       <FormSection number={3} title="Licence & Other" tone="slate" hint="Licence expiry shows in Alerts, like vehicle documents">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           <Field label="Driving Licence No." htmlFor="emp-dl">
             <input id="emp-dl" className="input uppercase" value={form.licenseNo} onChange={(event) => set('licenseNo', event.target.value)} />
           </Field>
