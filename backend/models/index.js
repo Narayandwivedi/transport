@@ -11,6 +11,8 @@ const text = { type: String, trim: true, default: "" };
 
 // How a trip or a hired vehicle is charged
 const BILLING_BASES = ["per_trip", "per_km", "per_ton", "fixed"];
+// A trip can also be charged per ton per km: tons × km × rate
+const TRIP_BASES = [...BILLING_BASES, "per_ton_km"];
 
 const userSchema = new Schema(
   {
@@ -103,14 +105,16 @@ const tripSchema = new Schema(
     from: text,
     to: text,
     material: text,
-    billingBasis: { type: String, enum: BILLING_BASES, default: "per_trip" },
+    billingBasis: { type: String, enum: TRIP_BASES, default: "per_trip" },
+    // Trips, km or tons as the basis asks; per ton per km: the tons, with the km in distanceKm
     quantity: { type: Number, default: 1, min: 0 },
+    distanceKm: money,
     rate: money,
     amount: money,
     startKm: money,
     endKm: money,
     // Hired vehicle paid per trip / km / ton: what I owe its owner for this trip
-    hireBasis: { type: String, enum: ["", ...BILLING_BASES], default: "" },
+    hireBasis: { type: String, enum: ["", ...TRIP_BASES], default: "" },
     hireQuantity: money,
     hireRate: money,
     hireAmount: money,

@@ -90,7 +90,7 @@ export default function Trips() {
                       <p>{[trip.from, trip.to].filter(Boolean).join(' → ') || '—'}</p>
                       {trip.material && <p className="text-xs text-slate-500">{trip.material}</p>}
                     </td>
-                    <td className={`${TD} whitespace-nowrap text-xs`}>{describeCharge(trip.billingBasis, trip.quantity, trip.rate)}</td>
+                    <td className={`${TD} whitespace-nowrap text-xs`}>{describeCharge(trip.billingBasis, trip.quantity, trip.rate, trip.distanceKm)}</td>
                     <td className={`${TD} text-right font-semibold text-emerald-700`}>{formatRupees(trip.amount)}</td>
                     <td className={`${TD} text-right text-amber-700`}>{trip.hireAmount ? formatRupees(trip.hireAmount) : '—'}</td>
                     <td className={TD}><span className={STATUS[trip.status]?.className}>{STATUS[trip.status]?.label}</span></td>

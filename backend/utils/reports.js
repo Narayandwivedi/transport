@@ -56,6 +56,7 @@ const profitReport = async (userId, from, to) => {
     row.tripHireCost += toNumber(trip.hireAmount);
     // Km of a per-km trip, or of the meter on older trips that recorded start / end km
     if (trip.billingBasis === "per_km") row.km += toNumber(trip.quantity);
+    else if (trip.billingBasis === "per_ton_km") row.km += toNumber(trip.distanceKm);
     else if (trip.endKm > trip.startKm) row.km += trip.endKm - trip.startKm;
   });
   contracts.forEach((contract) => {

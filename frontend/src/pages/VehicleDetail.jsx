@@ -180,7 +180,7 @@ export default function VehicleDetail() {
                     <td className={TD}><p className="font-mono text-xs font-semibold">{trip.tripNo}</p><p className="text-xs text-slate-500">{formatDate(trip.date)}</p></td>
                     <td className={TD}>{trip.partyId?.name}</td>
                     <td className={TD}>{[trip.from, trip.to].filter(Boolean).join(' → ') || '—'}</td>
-                    <td className={`${TD} text-xs`}>{describeCharge(trip.billingBasis, trip.quantity, trip.rate)}</td>
+                    <td className={`${TD} text-xs`}>{describeCharge(trip.billingBasis, trip.quantity, trip.rate, trip.distanceKm)}</td>
                     <td className={`${TD} text-right font-semibold text-emerald-700`}>{formatRupees(trip.amount)}</td>
                     <td className={`${TD} text-right text-amber-700`}>{trip.hireAmount ? formatRupees(trip.hireAmount) : '—'}</td>
                   </tr>

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Gauge, Route, Weight } from 'lucide-react';
+import { ArrowRight, Gauge, Route, Truck, Weight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
-import { BILLING_BASIS_OPTIONS, calcAmount, getBasisUnit } from '../utils/constants';
+import { TRIP_BASIS_OPTIONS, calcAmount, getBasisUnit } from '../utils/constants';
 import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
@@ -11,20 +11,22 @@ import PartyPopup from './PartyPopup';
 import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
-// The three ways to charge, as shown in the picker (per trip is the fixed amount)
+// The four ways to charge, as shown in the picker (per trip is the fixed amount)
 const CHARGE_TYPES = [
   { value: 'per_trip', label: 'Per Trip (Fixed)', icon: Route },
   { value: 'per_km', label: 'Per KM', icon: Gauge },
   { value: 'per_ton', label: 'Per Ton', icon: Weight },
+  { value: 'per_ton_km', label: 'Per Ton per KM', icon: Truck },
 ];
 
-// What the quantity box asks for under each way of charging
-const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Kilometres', per_ton: 'Weight' };
-const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded' };
+// What the quantity box asks for under each way of charging (per ton per km: the tons; the km has its own box)
+const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Kilometres', per_ton: 'Weight', per_ton_km: 'Weight' };
+const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded', per_ton_km: 'Tons loaded' };
+const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
 const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '',
-  billingBasis: 'per_trip', quantity: '1', rate: '',
+  billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
   hireBasis: '', hireQuantity: '', hireRate: '', driverAdvance: '', status: 'completed', notes: '',
 };
 
@@ -67,14 +69,16 @@ const fromTrip = (trip) => ({
   date: toDayInput(trip.date),
   vehicleId: idOf(trip.vehicleId),
   partyId: idOf(trip.partyId),
+  distanceKm: trip.distanceKm || '',
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverAdvance: trip.driverAdvance || '',
 });
 
-// "25 ton × ₹900" or "Fixed"
-const sumText = (basis, quantity, rate) => {
+// "25 ton × ₹900", "30 ton × 100 km × ₹4" or "Fixed"
+const sumText = (basis, quantity, rate, km) => {
   if (basis === 'fixed') return 'Fixed amount';
+  if (basis === 'per_ton_km') return `${formatNumber(toNumber(quantity), 3)} ton × ${formatNumber(toNumber(km), 0)} km × ${formatRupees(rate)}`;
   if (basis === 'per_trip' && toNumber(quantity) === 1) return 'Total Amount';
   const unit = getBasisUnit(basis);
   const qty = toNumber(quantity);
@@ -114,7 +118,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     if (nextBasis === basis) return;
     setForm((prev) => {
       const quantity = nextBasis === 'per_trip' ? '1' : '';
-      return { ...prev, billingBasis: nextBasis, from: '', to: '', quantity, rate: '', ...hireDefaults(vehicle, nextBasis, quantity) };
+      return { ...prev, billingBasis: nextBasis, from: '', to: '', quantity, rate: '', distanceKm: '', ...hireDefaults(vehicle, nextBasis, quantity) };
     });
   };
 
@@ -153,13 +157,21 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicles]);
 
-  const amount = calcAmount(basis, form.quantity, form.rate);
-  // Paid the same way as the party, the owner is paid on the same quantity
-  // Paid per trip, the owner gets one trip's pay for this entry
+  const amount = calcAmount(basis, form.quantity, form.rate, form.distanceKm);
+  // The tons and km the party is charged on, when its basis gives them
+  const partyTons = basis === 'per_ton' || basis === 'per_ton_km' ? form.quantity : null;
+  const partyKm = { per_km: form.quantity, per_ton_km: form.distanceKm }[basis] ?? null;
+  // The owner is paid on the same tons / km as the party; per trip is one trip's pay; anything else is asked
+  const hireBasis = form.hireBasis;
   let hireQuantity = form.hireQuantity;
-  if (form.hireBasis === basis) hireQuantity = form.quantity;
-  else if (form.hireBasis === 'per_trip') hireQuantity = '1';
-  const hireAmount = isHired && form.hireBasis ? calcAmount(form.hireBasis, hireQuantity, form.hireRate) : 0;
+  let hireQuantityAsked = false;
+  if (hireBasis === basis) hireQuantity = form.quantity;
+  else if (hireBasis === 'per_trip') hireQuantity = '1';
+  else if ((hireBasis === 'per_ton' || hireBasis === 'per_ton_km') && partyTons !== null) hireQuantity = partyTons;
+  else if (hireBasis === 'per_km' && partyKm !== null) hireQuantity = partyKm;
+  else hireQuantityAsked = hireBasis !== 'fixed';
+  const hireKm = partyKm ?? form.distanceKm;
+  const hireAmount = isHired && hireBasis ? calcAmount(hireBasis, hireQuantity, form.hireRate, hireKm) : 0;
   const margin = amount - hireAmount;
 
   const handleSubmit = async () => {
@@ -169,7 +181,9 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     }
     setSaving(true);
     try {
-      const payload = { ...form, hireQuantity };
+      // distanceKm carries the km of a per ton per km charge, the party's or the owner's
+      const distanceKm = basis === 'per_ton_km' || (isHired && hireBasis === 'per_ton_km') ? hireKm : 0;
+      const payload = { ...form, hireQuantity, distanceKm };
       if (trip) await apiClient.put(`/trips/${trip._id}`, payload);
       else await apiClient.post('/trips', payload);
       toast.success(trip ? 'Trip updated' : 'Trip added');
@@ -184,12 +198,16 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
   const unit = getBasisUnit(basis);
   const hireUnit = getBasisUnit(form.hireBasis);
+  const quantityUnit = QUANTITY_UNITS[basis] || unit;
+  const hireQuantityUnit = QUANTITY_UNITS[form.hireBasis] || hireUnit;
   // Per trip always asks From → To
   const showTypedRoute = basis === 'per_trip';
   // One entry is one trip, so per trip never asks how many (an old trip saved with more still shows it)
   const askQuantity = basis !== 'per_trip' || toNumber(form.quantity) !== 1;
-  // The owner's quantity is asked only when they are paid a different way from the party, and never per trip
-  const askHireQuantity = form.hireBasis && !['fixed', 'per_trip'].includes(form.hireBasis) && form.hireBasis !== basis;
+  // The owner's tons / km are asked only when the party's charge does not give them, and never per trip
+  const askHireQuantity = Boolean(hireBasis) && hireQuantityAsked;
+  // Owner paid per ton per km on a trip that gives no km: ask the km
+  const askHireKm = hireBasis === 'per_ton_km' && partyKm === null;
 
   const routeLabel = (route) => `${route.from} → ${route.to}`;
 
@@ -197,7 +215,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     <>
       <FormPopup
         title={trip ? `Edit Trip ${trip.tripNo}` : 'Add Trip'}
-        subtitle="Bill a party per trip, per km or per ton"
+        subtitle="Bill a party per trip, per km, per ton or per ton per km"
         maxWidth="max-w-4xl"
         onClose={onClose}
         onSubmit={handleSubmit}
@@ -230,7 +248,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
         {/* 2. Route and how the party is charged */}
         <FormSection number={2} title="Route & Charge" tone="sky">
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/70 p-1 ring-1 ring-sky-200">
+          <div className="grid grid-cols-2 gap-1 rounded-xl sm:grid-cols-4 bg-white/70 p-1 ring-1 ring-sky-200">
             {CHARGE_TYPES.map(({ value, label, icon: Icon }) => {
               const active = basis === value;
               return (
@@ -275,20 +293,25 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             </div>
           )}
 
-          <div className={`grid gap-3 md:gap-4 ${askQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-1 sm:grid-cols-3' : askQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {askQuantity && (
               <Field label={QUANTITY_LABELS[basis]} required>
-                <MoneyInput prefix="" suffix={unit} value={form.quantity} onChange={(value) => set('quantity', value)} placeholder={QUANTITY_PLACEHOLDERS[basis]} required />
+                <MoneyInput prefix="" suffix={quantityUnit} value={form.quantity} onChange={(value) => set('quantity', value)} placeholder={QUANTITY_PLACEHOLDERS[basis]} required />
               </Field>
             )}
-            <Field label={basis === 'per_trip' ? 'Trip Amount' : `Rate per ${unit}`} required>
+            <Field label={basis === 'per_trip' ? 'Trip Amount' : basis === 'per_ton_km' ? 'Rate per Ton per KM' : `Rate per ${unit}`} required>
               <MoneyInput value={form.rate} onChange={(value) => set('rate', value)} suffix={unit ? `/${unit}` : ''} required />
             </Field>
+            {basis === 'per_ton_km' && (
+              <Field label="Distance" required>
+                <MoneyInput prefix="" suffix="km" value={form.distanceKm} onChange={(value) => set('distanceKm', value)} placeholder="How many km" required />
+              </Field>
+            )}
           </div>
 
           <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 ring-1 transition ${amount > 0 ? 'bg-emerald-50 ring-emerald-200' : 'bg-slate-50 ring-slate-200'}`}>
             <span className={`text-sm ${amount > 0 ? 'text-emerald-800' : 'text-slate-500'}`}>
-              {sumText(basis, form.quantity, form.rate)}
+              {sumText(basis, form.quantity, form.rate, form.distanceKm)}
               {onSavedRoute && toNumber(form.rate) === toNumber(routes[routeIndex].rate) && <span className="ml-2 text-xs text-emerald-600">saved rate</span>}
             </span>
             <span className={`text-lg font-bold ${amount > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatRupees(amount)}</span>
@@ -304,24 +327,29 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             action={(
               <select className="input h-9 min-h-0 w-auto py-0 text-xs md:text-sm" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)} aria-label="Pay owner">
                 <option value="">Monthly hire (no trip pay)</option>
-                {BILLING_BASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>Pay {option.label}</option>)}
+                {TRIP_BASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>Pay {option.label}</option>)}
               </select>
             )}
           >
             {form.hireBasis ? (
               <>
-                <div className={`grid gap-3 ${askHireQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-3 ${askHireQuantity && askHireKm ? 'grid-cols-1 sm:grid-cols-3' : askHireQuantity || askHireKm ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {askHireQuantity && (
                     <Field label={QUANTITY_LABELS[form.hireBasis]}>
-                      <MoneyInput prefix="" suffix={hireUnit} value={form.hireQuantity} onChange={(value) => set('hireQuantity', value)} />
+                      <MoneyInput prefix="" suffix={hireQuantityUnit} value={form.hireQuantity} onChange={(value) => set('hireQuantity', value)} />
                     </Field>
                   )}
-                  <Field label={form.hireBasis === 'fixed' ? 'Owner amount' : `Owner rate per ${hireUnit}`}>
+                  {askHireKm && (
+                    <Field label="Distance">
+                      <MoneyInput prefix="" suffix="km" value={form.distanceKm} onChange={(value) => set('distanceKm', value)} placeholder="How many km" />
+                    </Field>
+                  )}
+                  <Field label={form.hireBasis === 'fixed' ? 'Owner amount' : form.hireBasis === 'per_ton_km' ? 'Owner rate per Ton per KM' : `Owner rate per ${hireUnit}`}>
                     <MoneyInput value={form.hireRate} onChange={(value) => set('hireRate', value)} suffix={hireUnit ? `/${hireUnit}` : ''} />
                   </Field>
                 </div>
                 <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 ring-1 ${hireAmount > 0 ? 'bg-amber-50 ring-amber-200' : 'bg-slate-50 ring-slate-200'}`}>
-                  <span className={`text-sm ${hireAmount > 0 ? 'text-amber-800' : 'text-slate-500'}`}>{sumText(form.hireBasis, hireQuantity, form.hireRate)}</span>
+                  <span className={`text-sm ${hireAmount > 0 ? 'text-amber-800' : 'text-slate-500'}`}>{sumText(form.hireBasis, hireQuantity, form.hireRate, hireKm)}</span>
                   <span className={`text-lg font-bold ${hireAmount > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{formatRupees(hireAmount)}</span>
                 </div>
               </>

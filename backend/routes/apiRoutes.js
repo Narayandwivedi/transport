@@ -15,8 +15,12 @@ const router = express.Router();
 
 const refuse = (message) => Object.assign(new Error(message), { status: 400 });
 
-// Quantity × rate, or the rate itself for a fixed amount
-const lineAmount = (basis, quantity, rate) => round2(basis === "fixed" ? toNumber(rate) : toNumber(quantity) * toNumber(rate));
+// Quantity × rate, the rate itself for a fixed amount, or tons × km × rate per ton per km
+const lineAmount = (basis, quantity, rate, km = 0) => {
+  if (basis === "fixed") return round2(toNumber(rate));
+  if (basis === "per_ton_km") return round2(toNumber(quantity) * toNumber(km) * toNumber(rate));
+  return round2(toNumber(quantity) * toNumber(rate));
+};
 
 // "raipur|bilaspur": a route matched without caring about capitals or spaces
 const routeKey = (row) => `${String(row.from || "").trim().toLowerCase()}|${String(row.to || "").trim().toLowerCase()}`;
@@ -119,11 +123,12 @@ router.use("/trips", crudRouter(Trip, {
       }
       if (data.hireBasis === routeBasis && !toNumber(data.hireRate)) data.hireRate = route.hireRate;
     }
-    data.amount = lineAmount(data.billingBasis, data.quantity, data.rate);
+    if (data.billingBasis === "per_ton_km" && !(toNumber(data.distanceKm) > 0)) throw refuse("Enter how many km");
+    data.amount = lineAmount(data.billingBasis, data.quantity, data.rate, data.distanceKm);
     // Only a hired vehicle paid per trip / km / ton costs hire on the trip
     if (vehicle.ownership === "hired" && data.hireBasis) {
       data.hirePartyId = data.hirePartyId || vehicle.ownerPartyId;
-      data.hireAmount = lineAmount(data.hireBasis, data.hireQuantity, data.hireRate);
+      data.hireAmount = lineAmount(data.hireBasis, data.hireQuantity, data.hireRate, data.distanceKm);
     } else {
       Object.assign(data, { hireBasis: "", hireQuantity: 0, hireRate: 0, hireAmount: 0, hirePartyId: null });
     }

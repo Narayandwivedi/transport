@@ -10,18 +10,25 @@ export const BILLING_BASIS_OPTIONS = [
 
 export const QUOTE_BASIS_OPTIONS = [...BILLING_BASIS_OPTIONS, { value: 'per_month', label: 'Per Month', unit: 'month' }];
 
-export const getBasisLabel = (basis) => QUOTE_BASIS_OPTIONS.find((option) => option.value === basis)?.label || '—';
-export const getBasisUnit = (basis) => QUOTE_BASIS_OPTIONS.find((option) => option.value === basis)?.unit || '';
+// A trip can also be charged per ton per km: tons × km × rate
+export const TRIP_BASIS_OPTIONS = [...BILLING_BASIS_OPTIONS, { value: 'per_ton_km', label: 'Per Ton per KM', unit: 'ton/km' }];
 
-// A fixed amount ignores the quantity
-export const calcAmount = (basis, quantity, rate) => {
-  const value = basis === 'fixed' ? Number(rate || 0) : Number(quantity || 0) * Number(rate || 0);
+const ALL_BASIS_OPTIONS = [...QUOTE_BASIS_OPTIONS, TRIP_BASIS_OPTIONS.at(-1)];
+export const getBasisLabel = (basis) => ALL_BASIS_OPTIONS.find((option) => option.value === basis)?.label || '—';
+export const getBasisUnit = (basis) => ALL_BASIS_OPTIONS.find((option) => option.value === basis)?.unit || '';
+
+// A fixed amount ignores the quantity; per ton per km multiplies the tons, the km and the rate
+export const calcAmount = (basis, quantity, rate, km = 0) => {
+  let value = Number(quantity || 0) * Number(rate || 0);
+  if (basis === 'fixed') value = Number(rate || 0);
+  else if (basis === 'per_ton_km') value *= Number(km || 0);
   return Math.round(value * 100) / 100;
 };
 
-// "120 km × ₹50" for a trip's charge
-export const describeCharge = (basis, quantity, rate) => {
+// "120 km × ₹50" (or "30 ton × 100 km × ₹4") for a trip's charge
+export const describeCharge = (basis, quantity, rate, km = 0) => {
   if (basis === 'fixed') return 'Fixed';
+  if (basis === 'per_ton_km') return `${formatNumber(quantity, 3)} ton × ${formatNumber(km, 0)} km × ${formatRupees(rate)}`;
   return `${formatNumber(quantity, 3)} ${getBasisUnit(basis)} × ${formatRupees(rate)}`;
 };
 
