@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, Gauge, IndianRupee, Route, Weight } from 'lucide-react';
+import { ArrowRight, Gauge, IndianRupee, Plus, Route, Weight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -79,12 +79,31 @@ const sumText = (basis, quantity, rate) => {
   return `${formatNumber(qty, 3)} ${unitLabel} × ${formatRupees(rate)}`;
 };
 
-const SectionTitle = ({ children, aside }) => (
-  <div className="flex items-center justify-between gap-2">
-    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">{children}</h3>
-    {aside}
-  </div>
-);
+// Numbered, colour-tinted section card (same look as the insurance form in BimaOne)
+const SECTION_TONES = {
+  blue: { card: 'from-blue-50 to-sky-50 border-blue-200', badge: 'bg-blue-600' },
+  sky: { card: 'from-sky-50 to-cyan-50 border-sky-200', badge: 'bg-sky-600' },
+  amber: { card: 'from-amber-50 to-orange-50 border-amber-200', badge: 'bg-amber-600' },
+  slate: { card: 'from-slate-50 to-blue-50 border-slate-300', badge: 'bg-slate-700' },
+};
+
+const Section = ({ step, title, tone = 'blue', aside, children }) => {
+  const { card, badge } = SECTION_TONES[tone];
+  return (
+    <section className={`rounded-xl border-2 bg-gradient-to-r p-3 md:p-5 ${card}`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 md:mb-4">
+        <h3 className="flex items-center gap-2 text-base font-bold text-slate-800 md:text-lg">
+          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs text-white md:h-8 md:w-8 md:text-sm ${badge}`}>{step}</span>
+          {title}
+        </h3>
+        {aside}
+      </div>
+      <div className="space-y-3 md:space-y-4">{children}</div>
+    </section>
+  );
+};
+
+const Req = () => <span className="text-red-500"> *</span>;
 
 /**
  * A trip billed to a party. First how it is charged, then only what that needs:
@@ -94,7 +113,6 @@ const SectionTitle = ({ children, aside }) => (
 export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }) {
   const { vehicles, parties, reload: reloadParties } = useMasters();
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
-  const [showMore, setShowMore] = useState(Boolean(trip && (trip.material || trip.notes || trip.driverAdvance || trip.status !== 'completed')));
   const [addingParty, setAddingParty] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -197,7 +215,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
       <FormPopup
         title={trip ? `Edit Trip ${trip.tripNo}` : 'Add Trip'}
         subtitle="Bill a party per trip, per km or per ton"
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-4xl"
         onClose={onClose}
         onSubmit={handleSubmit}
         submitDisabled={saving}
@@ -212,26 +230,30 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </div>
         )}
       >
-        {/* Who and when */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[9.5rem_1fr]">
-          <Field label="Date" htmlFor="trip-date">
-            <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
-          </Field>
-          <Field label="Vehicle">
-            <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
-          </Field>
-        </div>
-        <Field label="Bill To">
-          <div className="flex gap-2">
-            <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required />
-            <button type="button" className="btn-secondary shrink-0 px-3" onClick={() => setAddingParty(true)}>+ New</button>
+        {/* 1. Who and when */}
+        <Section step={1} title="Trip Details" tone="blue">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
+            <Field label={<>Date<Req /></>} htmlFor="trip-date">
+              <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
+            </Field>
+            <Field label={<>Vehicle<Req /></>}>
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
+            </Field>
+            <div className="md:col-span-2">
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="label mb-0">Bill To<Req /></span>
+                <button type="button" onClick={() => setAddingParty(true)} className="flex cursor-pointer items-center gap-0.5 text-xs font-semibold text-primary-600 hover:text-primary-800">
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required />
+            </div>
           </div>
-        </Field>
+        </Section>
 
-        {/* How the party is charged */}
-        <div className="space-y-3 border-t border-slate-100 pt-4">
-          <SectionTitle>Charge</SectionTitle>
-          <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1">
+        {/* 2. Route and how the party is charged */}
+        <Section step={2} title="Route & Charge" tone="sky">
+          <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/70 p-1 ring-1 ring-sky-200">
             {CHARGE_TYPES.map(({ value, label, icon: Icon }) => {
               const active = basis === value;
               return (
@@ -240,7 +262,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
                   type="button"
                   onClick={() => changeBasis(value)}
                   aria-pressed={active}
-                  className={`flex items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-white text-primary-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
                 >
                   <Icon size={16} className="hidden sm:block" /> {label}
                 </button>
@@ -266,23 +288,23 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
           {showTypedRoute && (
             <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-              <Field label="From" htmlFor="trip-from">
+              <Field label={basis === 'per_trip' ? <>From<Req /></> : 'From'} htmlFor="trip-from">
                 <input id="trip-from" className="input" value={form.from} onChange={(event) => typeRoute('from', event.target.value)} placeholder="Location A" autoComplete="off" required={basis === 'per_trip'} />
               </Field>
               <ArrowRight size={16} className="mb-3 text-slate-400" />
-              <Field label="To" htmlFor="trip-to">
+              <Field label={basis === 'per_trip' ? <>To<Req /></> : 'To'} htmlFor="trip-to">
                 <input id="trip-to" className="input" value={form.to} onChange={(event) => typeRoute('to', event.target.value)} placeholder="Location B" autoComplete="off" required={basis === 'per_trip'} />
               </Field>
             </div>
           )}
 
-          <div className={`grid gap-3 ${basis === 'fixed' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 md:gap-4 ${basis === 'fixed' ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {basis !== 'fixed' && (
-              <Field label={QUANTITY_LABELS[basis]}>
+              <Field label={<>{QUANTITY_LABELS[basis]}<Req /></>}>
                 <MoneyInput prefix="" suffix={unit} value={form.quantity} onChange={(value) => set('quantity', value)} placeholder={QUANTITY_PLACEHOLDERS[basis]} required />
               </Field>
             )}
-            <Field label={basis === 'fixed' ? 'Amount' : `Rate per ${unit}`}>
+            <Field label={<>{basis === 'fixed' ? 'Amount' : `Rate per ${unit}`}<Req /></>}>
               <MoneyInput value={form.rate} onChange={(value) => set('rate', value)} suffix={unit ? `/${unit}` : ''} required />
             </Field>
           </div>
@@ -294,21 +316,21 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             </span>
             <span className={`text-lg font-bold ${amount > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatRupees(amount)}</span>
           </div>
-        </div>
+        </Section>
 
-        {/* What the owner of a hired vehicle gets */}
+        {/* 3. What the owner of a hired vehicle gets */}
         {isHired && (
-          <div className="space-y-3 border-t border-slate-100 pt-4">
-            <SectionTitle
-              aside={(
-                <select className="input h-8 min-h-0 w-auto py-0 text-xs" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)} aria-label="Pay owner">
-                  <option value="">Monthly hire (no trip pay)</option>
-                  {BILLING_BASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>Pay {option.label}</option>)}
-                </select>
-              )}
-            >
-              Owner · {vehicle?.ownerPartyId?.name || 'Hired vehicle'}
-            </SectionTitle>
+          <Section
+            step={3}
+            tone="amber"
+            title={`Owner Payment · ${vehicle?.ownerPartyId?.name || 'Hired vehicle'}`}
+            aside={(
+              <select className="input h-9 min-h-0 w-auto py-0 text-xs md:text-sm" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)} aria-label="Pay owner">
+                <option value="">Monthly hire (no trip pay)</option>
+                {BILLING_BASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>Pay {option.label}</option>)}
+              </select>
+            )}
+          >
             {form.hireBasis ? (
               <>
                 <div className={`grid gap-3 ${askHireQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -329,39 +351,30 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             ) : (
               <p className="text-xs text-slate-500">Rent for this vehicle is counted from Monthly Hire, not on each trip.</p>
             )}
-          </div>
+          </Section>
         )}
 
-        {/* Rarely needed details, folded away */}
-        <div className="border-t border-slate-100 pt-3">
-          <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowMore((open) => !open)} aria-expanded={showMore}>
-            <SectionTitle>More details</SectionTitle>
-            <span className="flex items-center gap-1 text-xs text-slate-400">
-              {!showMore && 'Material, LR no., advance'}
-              <ChevronDown size={16} className={`transition ${showMore ? 'rotate-180' : ''}`} />
-            </span>
-          </button>
-          {showMore && (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <Field label="Material" htmlFor="trip-material">
-                <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
-              </Field>
-              <Field label="LR No. / Notes" htmlFor="trip-notes">
-                <input id="trip-notes" className="input" value={form.notes} onChange={(event) => set('notes', event.target.value)} />
-              </Field>
-              <Field label="Driver Advance">
-                <MoneyInput value={form.driverAdvance} onChange={(value) => set('driverAdvance', value)} />
-              </Field>
-              <Field label="Status">
-                <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>
-                  <option value="planned">Planned</option>
-                  <option value="running">On the way</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </Field>
-            </div>
-          )}
-        </div>
+        {/* 3 or 4. Other details */}
+        <Section step={isHired ? 4 : 3} title="Other Details" tone="slate">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
+            <Field label="Material" htmlFor="trip-material">
+              <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
+            </Field>
+            <Field label="Driver Advance">
+              <MoneyInput value={form.driverAdvance} onChange={(value) => set('driverAdvance', value)} />
+            </Field>
+            <Field label="Status">
+              <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>
+                <option value="planned">Planned</option>
+                <option value="running">On the way</option>
+                <option value="completed">Completed</option>
+              </select>
+            </Field>
+            <Field label="LR No. / Notes" htmlFor="trip-notes" className="sm:col-span-2 md:col-span-3">
+              <textarea id="trip-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="LR number or any additional notes…" />
+            </Field>
+          </div>
+        </Section>
       </FormPopup>
 
       {addingParty && (
