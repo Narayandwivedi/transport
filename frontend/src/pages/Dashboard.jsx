@@ -89,8 +89,8 @@ export default function Dashboard() {
         <StatCard compact icon={CalendarClock} tone="slate" label="Given Out (monthly)" value={givenOut} />
       </section>
 
-      <section className="space-y-2">
-        <h2 className="px-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Quick Add</h2>
+      <section className="space-y-2.5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 via-slate-50 to-primary-50/60 p-3 shadow-inner md:p-4">
+        <h2 className="flex items-center gap-1.5 px-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600"><Plus size={13} className="text-primary-600" />Quick Add</h2>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
           {QUICK_ACTIONS.map(({ key, label, hint, icon: Icon, strip, card, icon_: iconTone, plus }) => (
             <button
