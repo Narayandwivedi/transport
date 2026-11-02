@@ -125,6 +125,16 @@ const tripSchema = new Schema(
     hireAmount: money,
     hirePartyId: ref("Party"),
     driverAdvance: money,
+    // Spends on the way (toll, puncture, loading…); each is also kept as an Expense on the vehicle
+    expenses: [
+      {
+        _id: false,
+        category: { type: String, trim: true, required: true },
+        amount: money,
+        notes: text,
+      },
+    ],
+    expenseTotal: money,
     status: { type: String, enum: ["planned", "running", "completed"], default: "completed" },
     notes: text,
   },
@@ -184,8 +194,10 @@ const expenseSchema = new Schema(
     mode: { type: String, enum: ["cash", "bank", "upi", "credit"], default: "cash" },
     notes: text,
     // inventory: made by issuing stock to the vehicle; it is changed through that issue, not on its own
-    source: { type: String, enum: ["manual", "inventory", "maintenance", "payroll"], default: "manual" },
+    source: { type: String, enum: ["manual", "inventory", "maintenance", "payroll", "trip"], default: "manual" },
     inventoryTxnId: ref("InventoryTxn"),
+    // trip: a spend entered on a trip; it is changed through that trip
+    tripId: ref("Trip"),
     // payroll: salary / advance / bata paid to an employee; it is changed in Payroll
     payrollEntryId: ref("PayrollEntry"),
   },

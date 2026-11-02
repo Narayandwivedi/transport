@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Box, Gauge, Package, PackageCheck, Route, Truck, Weight } from 'lucide-react';
+import { ArrowRight, Box, Gauge, Package, PackageCheck, Route, Trash2, Truck, Weight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -25,10 +25,14 @@ const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Kilometres', per_ton: 'Wei
 const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded', per_ton_km: 'Tons loaded', per_cft: 'How many cubic feet' };
 const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
+// The kinds of spend on the way, for now
+const EXPENSE_TYPES = ['Tyre Puncture', 'Toll', 'Other'];
+const EMPTY_EXPENSE = { category: '', amount: '', notes: '' };
+
 const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
-  hireBasis: '', hireQuantity: '', hireRate: '', driverAdvance: '', status: 'completed', notes: '',
+  hireBasis: '', hireQuantity: '', hireRate: '', driverAdvance: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
 };
 
 // Routes match without caring about capitals or extra spaces
@@ -76,6 +80,8 @@ const fromTrip = (trip) => ({
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverAdvance: trip.driverAdvance || '',
+  // Always at least one expense row to fill
+  expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '' })) : [EMPTY_EXPENSE],
 });
 
 // "25 ton × ₹900", "30 ton × 100 km × ₹4" or "Fixed"
@@ -179,11 +185,25 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const suppliesMaterial = form.materialBy === 'me';
   const materialAmount = suppliesMaterial ? toNumber(form.materialAmount) : 0;
   const total = amount + materialAmount;
-  const margin = amount - hireAmount;
+  // Trip expenses: toll, puncture and the like, booked against the vehicle
+  const expenseTotal = form.expenses.reduce((sum, row) => sum + toNumber(row.amount), 0);
+  const setExpense = (index, field, value) => setForm((prev) => ({
+    ...prev,
+    expenses: prev.expenses.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+  }));
+  const addExpense = () => setForm((prev) => ({ ...prev, expenses: [...prev.expenses, EMPTY_EXPENSE] }));
+  const filledExpenses = form.expenses.filter((row) => toNumber(row.amount) > 0).length;
+  const removeExpense = (index) => setForm((prev) => ({ ...prev, expenses: prev.expenses.filter((_, i) => i !== index) }));
+  // Profit on the transport: what the party pays for it, less the owner's pay and the trip's expenses
+  const margin = amount - hireAmount - expenseTotal;
 
   const handleSubmit = async () => {
     if (!String(form.from || '').trim() || !String(form.to || '').trim()) {
       toast.error('Enter the route: From (location A) → To (location B)');
+      return;
+    }
+    if (form.expenses.some((row) => toNumber(row.amount) > 0 && !row.category)) {
+      toast.error('Pick the type of each expense');
       return;
     }
     if (suppliesMaterial && !String(form.material || '').trim()) {
@@ -235,8 +255,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <span className="text-xs font-medium text-slate-500">Bill</span>
             <span className="text-base font-bold text-slate-900">{formatRupees(total)}</span>
             {materialAmount > 0 && <span className="text-xs text-slate-500">incl. material {formatRupees(materialAmount)}</span>}
-            {hireAmount > 0 && (
-              <span className={`text-xs font-semibold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Margin {formatRupees(margin)}</span>
+            {(hireAmount > 0 || expenseTotal > 0) && (
+              <span className={`text-xs font-semibold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Profit {formatRupees(margin)}</span>
             )}
           </div>
         )}
@@ -412,8 +432,55 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </FormSection>
         )}
 
-        {/* 4 or 5. Other details */}
-        <FormSection number={isHired ? 5 : 4} title="Other Details" tone="slate">
+        {/* 4 or 5. Spends on the way: toll, puncture… each saved as an expense of the vehicle */}
+        <FormSection
+          number={isHired ? 5 : 4}
+          title="Trip Expenses"
+          tone="rose"
+          action={<AddLink onClick={() => addExpense()}>Add Expense</AddLink>}
+        >
+          {/* Two boxes per expense: type, then amount */}
+          <div className="space-y-2">
+            {form.expenses.map((row, index) => (
+              <div key={index} className={`grid items-end gap-2 sm:gap-3 ${form.expenses.length > 1 ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
+                <Field label="Expense Type" htmlFor={`trip-expense-${index}`}>
+                  <select id={`trip-expense-${index}`} className="input" value={row.category} onChange={(event) => setExpense(index, 'category', event.target.value)}>
+                    <option value="">Select type</option>
+                    {/* An older trip may hold a type no longer listed */}
+                    {[...EXPENSE_TYPES, ...(row.category && !EXPENSE_TYPES.includes(row.category) ? [row.category] : [])].map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Amount">
+                  <MoneyInput value={row.amount} onChange={(value) => setExpense(index, 'amount', value)} />
+                </Field>
+                {form.expenses.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeExpense(index)}
+                    aria-label="Remove expense"
+                    className="mb-0.5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {expenseTotal > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-rose-50 px-4 py-2.5 ring-1 ring-rose-200">
+              <span className="text-sm text-rose-800">
+                {filledExpenses} expense{filledExpenses === 1 ? '' : 's'} · counted in this vehicle&apos;s costs
+              </span>
+              <span className="text-lg font-bold text-rose-700">{formatRupees(expenseTotal)}</span>
+            </div>
+          )}
+        </FormSection>
+
+        {/* 5 or 6. Other details */}
+        <FormSection number={isHired ? 6 : 5} title="Other Details" tone="slate">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
             <Field label="Driver Advance">
               <MoneyInput value={form.driverAdvance} onChange={(value) => set('driverAdvance', value)} />

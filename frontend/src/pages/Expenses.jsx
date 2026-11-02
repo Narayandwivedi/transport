@@ -15,6 +15,7 @@ const SOURCE_BADGE = {
   inventory: { label: 'From Store', className: 'badge-blue' },
   maintenance: { label: 'Service', className: 'badge-orange' },
   payroll: { label: 'Payroll', className: 'badge-green' },
+  trip: { label: 'Trip', className: 'badge-blue' },
 };
 
 export default function Expenses() {
@@ -35,8 +36,12 @@ export default function Expenses() {
     .sort((a, b) => b[1] - a[1]);
 
   const handleEdit = (expense) => {
-    if (expense.source === 'inventory' || expense.source === 'payroll') {
-      toast.info(expense.source === 'inventory' ? 'This came from issuing store stock. Change it in Inventory.' : 'This is a salary payment. Change it in Payroll.');
+    if (['inventory', 'payroll', 'trip'].includes(expense.source)) {
+      toast.info({
+        inventory: 'This came from issuing store stock. Change it in Inventory.',
+        payroll: 'This is a salary payment. Change it in Payroll.',
+        trip: 'This was added on a trip. Change it in that trip.',
+      }[expense.source]);
       return;
     }
     setEditing(expense);
@@ -112,7 +117,7 @@ export default function Expenses() {
                     <td className={TD}>
                       <div className="flex justify-end">
                         <RowAction title="Edit" icon={Pencil} onClick={() => handleEdit(expense)} />
-                        {!['inventory', 'payroll'].includes(expense.source) && <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => handleDelete(expense)} />}
+                        {!['inventory', 'payroll', 'trip'].includes(expense.source) && <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => handleDelete(expense)} />}
                       </div>
                     </td>
                   </tr>

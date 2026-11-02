@@ -96,6 +96,24 @@ router.use("/vehicles", crudRouter(Vehicle, {
   },
 }));
 
+// A trip's expenses live as Expense records on its vehicle, so vehicle profit and reports count them
+const syncTripExpenses = async (userId, trip) => {
+  await Expense.deleteMany({ userId, tripId: trip._id });
+  const route = [trip.from, trip.to].filter(Boolean).join(" → ");
+  const rows = (trip.expenses || []).filter((row) => toNumber(row.amount) > 0);
+  if (!rows.length) return;
+  await Expense.insertMany(rows.map((row) => ({
+    userId,
+    date: trip.date,
+    vehicleId: trip.vehicleId,
+    category: row.category,
+    amount: row.amount,
+    notes: [`Trip ${trip.tripNo}${route ? ` (${route})` : ""}`, row.notes].filter(Boolean).join(" · "),
+    source: "trip",
+    tripId: trip._id,
+  })));
+};
+
 /* ───────── Trips ───────── */
 router.use("/trips", crudRouter(Trip, {
   sort: { date: -1, createdAt: -1 },
@@ -140,13 +158,22 @@ router.use("/trips", crudRouter(Trip, {
     } else {
       Object.assign(data, { hireBasis: "", hireQuantity: 0, hireRate: 0, hireAmount: 0, hirePartyId: null });
     }
+    // Trip expenses: keep the rows with an amount, and their total
+    data.expenses = (Array.isArray(data.expenses) ? data.expenses : [])
+      .map((row) => ({ category: String(row.category || "").trim(), amount: round2(toNumber(row.amount)), notes: String(row.notes || "").trim() }))
+      .filter((row) => row.category && row.amount > 0);
+    data.expenseTotal = round2(data.expenses.reduce((total, row) => total + row.amount, 0));
     return data;
   },
   afterSave: async (req, doc, old) => {
+    await syncTripExpenses(req.userId, doc);
     await refreshVehicleKm(req.userId, doc.vehicleId);
     if (old && idOf(old.vehicleId) !== idOf(doc.vehicleId)) await refreshVehicleKm(req.userId, old.vehicleId);
   },
-  afterDelete: (req, doc) => refreshVehicleKm(req.userId, doc.vehicleId),
+  afterDelete: async (req, doc) => {
+    await Expense.deleteMany({ userId: req.userId, tripId: doc._id });
+    await refreshVehicleKm(req.userId, doc.vehicleId);
+  },
 }));
 
 /* ───────── Monthly hire (vehicles hired in / given out on monthly rent) ───────── */
@@ -211,11 +238,13 @@ router.use("/expenses", crudRouter(Expense, {
     await ownVehicle(req, data.vehicleId);
     data.source = "manual";
     data.inventoryTxnId = null;
+    data.tripId = null;
     return data;
   },
   canChange: (doc) => ({
     inventory: "This expense came from issuing store stock. Change or delete it in Inventory.",
     payroll: "This expense is a salary / advance / bata payment. Change or delete it in Payroll.",
+    trip: "This expense was added on a trip. Change or delete it in that trip.",
   })[doc.source] || "",
   afterSave: (req, doc) => refreshVehicleKm(req.userId, doc.vehicleId),
   afterDelete: (req, doc) => refreshVehicleKm(req.userId, doc.vehicleId),
@@ -225,7 +254,7 @@ router.get("/expense-categories", async (req, res) => {
   const used = await Expense.distinct("category", { userId: req.userId });
   const defaults = [
     "Diesel", "Tyre", "Repair & Maintenance", "Spare Parts", "Oil & Lubricants", "Driver Salary", "Driver Bata",
-    "Staff Salary", "Toll", "Loading / Unloading", "Insurance", "Road Tax", "Permit", "Fitness", "PUC", "GPS", "EMI",
+    "Staff Salary", "Toll", "Tyre Puncture", "Loading / Unloading", "Insurance", "Road Tax", "Permit", "Fitness", "PUC", "GPS", "EMI",
     "Fine / Challan", "Parking", "Washing", "Office", "Other",
   ];
   res.json([...new Set([...defaults, ...used])]);
