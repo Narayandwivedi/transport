@@ -148,7 +148,7 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     date: trip.date,
     kind: "Trip",
     ref: trip.tripNo,
-    details: `${trip.vehicleId?.vehicleNo || ""} ${route(trip)}`.trim(),
+    details: `${trip.vehicleId?.vehicleNo || ""} ${route(trip)}${trip.materialBy === "me" && trip.materialAmount ? ` · incl. ${trip.material || "material"} ₹${toNumber(trip.materialAmount)}` : ""}`.trim(),
     debit: toNumber(trip.amount),
     credit: 0,
   }));

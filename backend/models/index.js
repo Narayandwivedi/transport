@@ -105,11 +105,16 @@ const tripSchema = new Schema(
     from: text,
     to: text,
     material: text,
+    // Usually the party loads its own material; sometimes I supply it and bill it with the transport
+    materialBy: { type: String, enum: ["party", "me"], default: "party" },
+    materialAmount: money,
     billingBasis: { type: String, enum: TRIP_BASES, default: "per_trip" },
     // Trips, km or tons as the basis asks; per ton per km: the tons, with the km in distanceKm
     quantity: { type: Number, default: 1, min: 0 },
     distanceKm: money,
     rate: money,
+    // freightAmount: the transport charge; amount: what the party is billed (transport + any material I supplied)
+    freightAmount: money,
     amount: money,
     startKm: money,
     endKm: money,

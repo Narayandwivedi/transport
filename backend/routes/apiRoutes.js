@@ -124,7 +124,15 @@ router.use("/trips", crudRouter(Trip, {
       if (data.hireBasis === routeBasis && !toNumber(data.hireRate)) data.hireRate = route.hireRate;
     }
     if (data.billingBasis === "per_ton_km" && !(toNumber(data.distanceKm) > 0)) throw refuse("Enter how many km");
-    data.amount = lineAmount(data.billingBasis, data.quantity, data.rate, data.distanceKm);
+    data.freightAmount = lineAmount(data.billingBasis, data.quantity, data.rate, data.distanceKm);
+    // Material I supplied is billed to the party along with the transport
+    if (data.materialBy === "me") {
+      if (!String(data.material || "").trim()) throw refuse("Enter which material you supplied");
+      data.materialAmount = round2(toNumber(data.materialAmount));
+    } else {
+      Object.assign(data, { materialBy: "party", materialAmount: 0 });
+    }
+    data.amount = round2(data.freightAmount + data.materialAmount);
     // Only a hired vehicle paid per trip / km / ton costs hire on the trip
     if (vehicle.ownership === "hired" && data.hireBasis) {
       data.hirePartyId = data.hirePartyId || vehicle.ownerPartyId;

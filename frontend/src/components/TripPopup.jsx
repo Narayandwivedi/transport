@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Box, Gauge, Route, Truck, Weight } from 'lucide-react';
+import { ArrowRight, Box, Gauge, Package, PackageCheck, Route, Truck, Weight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -26,7 +26,7 @@ const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: '
 const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
 const EMPTY = {
-  date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '',
+  date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
   hireBasis: '', hireQuantity: '', hireRate: '', driverAdvance: '', status: 'completed', notes: '',
 };
@@ -71,6 +71,8 @@ const fromTrip = (trip) => ({
   vehicleId: idOf(trip.vehicleId),
   partyId: idOf(trip.partyId),
   distanceKm: trip.distanceKm || '',
+  materialBy: trip.materialBy || 'party',
+  materialAmount: trip.materialAmount || '',
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverAdvance: trip.driverAdvance || '',
@@ -173,11 +175,19 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   else hireQuantityAsked = hireBasis !== 'fixed';
   const hireKm = partyKm ?? form.distanceKm;
   const hireAmount = isHired && hireBasis ? calcAmount(hireBasis, hireQuantity, form.hireRate, hireKm) : 0;
+  // Material I supply is billed with the transport; margin is on the transport only
+  const suppliesMaterial = form.materialBy === 'me';
+  const materialAmount = suppliesMaterial ? toNumber(form.materialAmount) : 0;
+  const total = amount + materialAmount;
   const margin = amount - hireAmount;
 
   const handleSubmit = async () => {
     if (basis === 'per_trip' && (!String(form.from || '').trim() || !String(form.to || '').trim())) {
       toast.error('Enter the route: From (location A) → To (location B)');
+      return;
+    }
+    if (suppliesMaterial && !String(form.material || '').trim()) {
+      toast.error('Enter which material you supplied');
       return;
     }
     setSaving(true);
@@ -225,7 +235,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         footerExtra={(
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span className="text-xs font-medium text-slate-500">Bill</span>
-            <span className="text-base font-bold text-slate-900">{formatRupees(amount)}</span>
+            <span className="text-base font-bold text-slate-900">{formatRupees(total)}</span>
+            {materialAmount > 0 && <span className="text-xs text-slate-500">incl. material {formatRupees(materialAmount)}</span>}
             {hireAmount > 0 && (
               <span className={`text-xs font-semibold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Margin {formatRupees(margin)}</span>
             )}
@@ -320,10 +331,53 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </div>
         </FormSection>
 
-        {/* 3. What the owner of a hired vehicle gets */}
+        {/* 3. Material: loaded by the party (usual), or supplied by me and billed with the transport */}
+        <FormSection number={3} title="Material" tone="emerald">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/70 p-1 ring-1 ring-emerald-200">
+            {[
+              { value: 'party', label: 'Party loads own material', icon: Package },
+              { value: 'me', label: 'We supply material', icon: PackageCheck },
+            ].map(({ value, label, icon: Icon }) => {
+              const active = form.materialBy === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => set('materialBy', value)}
+                  aria-pressed={active}
+                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+                >
+                  <Icon size={16} className="hidden sm:block" /> {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={`grid gap-3 md:gap-4 ${suppliesMaterial ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+            <Field label={suppliesMaterial ? 'Which material' : 'Material (optional)'} required={suppliesMaterial} htmlFor="trip-material">
+              <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" required={suppliesMaterial} />
+            </Field>
+            {suppliesMaterial && (
+              <Field label="Material Amount" required>
+                <MoneyInput value={form.materialAmount} onChange={(value) => set('materialAmount', value)} required />
+              </Field>
+            )}
+          </div>
+
+          {suppliesMaterial && (
+            <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 ring-1 ${total > 0 ? 'bg-emerald-50 ring-emerald-200' : 'bg-slate-50 ring-slate-200'}`}>
+              <span className="text-sm text-emerald-800">
+                Transport {formatRupees(amount)} + Material {formatRupees(materialAmount)}
+              </span>
+              <span className={`text-lg font-bold ${total > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatRupees(total)}</span>
+            </div>
+          )}
+        </FormSection>
+
+        {/* 4. What the owner of a hired vehicle gets */}
         {isHired && (
           <FormSection
-            number={3}
+            number={4}
             tone="amber"
             title={`Owner Payment · ${vehicle?.ownerPartyId?.name || 'Hired vehicle'}`}
             action={(
@@ -361,12 +415,9 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </FormSection>
         )}
 
-        {/* 3 or 4. Other details */}
-        <FormSection number={isHired ? 4 : 3} title="Other Details" tone="slate">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
-            <Field label="Material" htmlFor="trip-material">
-              <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
-            </Field>
+        {/* 4 or 5. Other details */}
+        <FormSection number={isHired ? 5 : 4} title="Other Details" tone="slate">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
             <Field label="Driver Advance">
               <MoneyInput value={form.driverAdvance} onChange={(value) => set('driverAdvance', value)} />
             </Field>
@@ -377,7 +428,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
                 <option value="completed">Completed</option>
               </select>
             </Field>
-            <Field label="LR No. / Notes" htmlFor="trip-notes" className="sm:col-span-2 md:col-span-3">
+            <Field label="LR No. / Notes" htmlFor="trip-notes" className="sm:col-span-2">
               <textarea id="trip-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="LR number or any additional notes…" />
             </Field>
           </div>

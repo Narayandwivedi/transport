@@ -88,7 +88,7 @@ export default function Trips() {
                     <td className={TD}>{trip.partyId?.name || '—'}</td>
                     <td className={TD}>
                       <p>{[trip.from, trip.to].filter(Boolean).join(' → ') || '—'}</p>
-                      {trip.material && <p className="text-xs text-slate-500">{trip.material}</p>}
+                      {trip.material && <p className="text-xs text-slate-500">{trip.material}{trip.materialBy === 'me' && trip.materialAmount ? ` · supplied ${formatRupees(trip.materialAmount)}` : ''}</p>}
                     </td>
                     <td className={`${TD} whitespace-nowrap text-xs`}>{describeCharge(trip.billingBasis, trip.quantity, trip.rate, trip.distanceKm)}</td>
                     <td className={`${TD} text-right font-semibold text-emerald-700`}>{formatRupees(trip.amount)}</td>
