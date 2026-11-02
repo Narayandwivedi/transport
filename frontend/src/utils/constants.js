@@ -10,10 +10,14 @@ export const BILLING_BASIS_OPTIONS = [
 
 export const QUOTE_BASIS_OPTIONS = [...BILLING_BASIS_OPTIONS, { value: 'per_month', label: 'Per Month', unit: 'month' }];
 
-// A trip can also be charged per ton per km: tons × km × rate
-export const TRIP_BASIS_OPTIONS = [...BILLING_BASIS_OPTIONS, { value: 'per_ton_km', label: 'Per Ton per KM', unit: 'ton/km' }];
+// A trip can also be charged per ton per km (tons × km × rate) or per cubic foot (cft × rate)
+const TRIP_ONLY_OPTIONS = [
+  { value: 'per_ton_km', label: 'Per Ton per KM', unit: 'ton/km' },
+  { value: 'per_cft', label: 'Per Cubic Feet', unit: 'cft' },
+];
+export const TRIP_BASIS_OPTIONS = [...BILLING_BASIS_OPTIONS, ...TRIP_ONLY_OPTIONS];
 
-const ALL_BASIS_OPTIONS = [...QUOTE_BASIS_OPTIONS, TRIP_BASIS_OPTIONS.at(-1)];
+const ALL_BASIS_OPTIONS = [...QUOTE_BASIS_OPTIONS, ...TRIP_ONLY_OPTIONS];
 export const getBasisLabel = (basis) => ALL_BASIS_OPTIONS.find((option) => option.value === basis)?.label || '—';
 export const getBasisUnit = (basis) => ALL_BASIS_OPTIONS.find((option) => option.value === basis)?.unit || '';
 
