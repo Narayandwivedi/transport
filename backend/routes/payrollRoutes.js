@@ -1,5 +1,6 @@
 const express = require("express");
-const { Employee, Attendance, PayrollEntry, Expense, Vehicle } = require("../models");
+const mongoose = require("mongoose");
+const { Employee, Attendance, PayrollEntry, Expense, Vehicle, Trip } = require("../models");
 const crudRouter = require("../utils/crud");
 const { dateFilter, currentMonth } = require("../utils/common");
 const { salarySheet, syncPayrollExpense, syncVehicleDriver, monthOf } = require("../utils/payroll");
@@ -33,6 +34,15 @@ router.post("/attendance", async (req, res) => {
 });
 
 /* ───────── Employees ───────── */
+// Trips driven by each driver: how many, and the last one's date
+router.get("/driver-trips", async (req, res) => {
+  const rows = await Trip.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(String(req.userId)), driverId: { $ne: null } } },
+    { $group: { _id: "$driverId", trips: { $sum: 1 }, lastTrip: { $max: "$date" } } },
+  ]);
+  res.json(rows.map((row) => ({ driverId: String(row._id), trips: row.trips, lastTrip: row.lastTrip })));
+});
+
 router.use("/employees", crudRouter(Employee, {
   sort: { isActive: -1, name: 1 },
   populate: "vehicleId",
@@ -47,7 +57,8 @@ router.use("/employees", crudRouter(Employee, {
   beforeDelete: async (req, doc) => {
     const used = await PayrollEntry.exists({ userId: req.userId, employeeId: doc._id })
       || await Attendance.exists({ userId: req.userId, employeeId: doc._id });
-    return used ? "This employee has attendance or payments. Mark them as left instead." : "";
+    if (used) return "This employee has attendance or payments. Mark them as left instead.";
+    return (await Trip.exists({ userId: req.userId, driverId: doc._id })) ? "This driver is on trips. Mark them as left instead." : "";
   },
 }));
 

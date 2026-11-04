@@ -135,6 +135,9 @@ const tripSchema = new Schema(
     hireRate: money,
     hireAmount: money,
     hirePartyId: ref("Party"),
+    // The driver (an employee with work "driver") who drove this trip
+    driverId: ref("Employee"),
+    // No longer asked on Add Trip; kept for trips saved earlier
     driverAdvance: money,
     // Spends on the way (toll, puncture, loading…); each is also kept as an Expense on the vehicle
     expenses: [

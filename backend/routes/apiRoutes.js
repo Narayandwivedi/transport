@@ -133,15 +133,16 @@ const syncTripExpenses = async (userId, trip) => {
 /* ───────── Trips ───────── */
 router.use("/trips", crudRouter(Trip, {
   sort: { date: -1, createdAt: -1 },
-  populate: "vehicleId partyId hirePartyId",
+  populate: "vehicleId partyId hirePartyId driverId",
   dateField: "date",
-  filters: ["vehicleId", "partyId", "status", "hirePartyId"],
+  filters: ["vehicleId", "partyId", "status", "hirePartyId", "driverId"],
   searchFields: ["tripNo", "from", "to", "material", "notes"],
   number: { field: "tripNo", key: "trip", prefix: "TR" },
   prepare: async (req, data) => {
     const vehicle = await ownVehicle(req, data.vehicleId);
     if (!vehicle) throw refuse("Pick a vehicle");
     if (!data.partyId) throw refuse("Pick the party to bill");
+    if (data.driverId && !(await Employee.exists({ _id: data.driverId, userId: req.userId }))) throw refuse("Driver not found");
     const startKm = toNumber(data.startKm);
     const endKm = toNumber(data.endKm);
     if (endKm && startKm && endKm < startKm) throw refuse("End km cannot be less than start km");

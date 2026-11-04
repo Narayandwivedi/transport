@@ -14,7 +14,7 @@ const EMPTY = {
   licenseNo: '', licenseExpiry: '', openingBalance: '', balanceSide: 'owed', address: '', notes: '',
 };
 
-export default function EmployeePopup({ employee = null, onClose, onSaved }) {
+export default function EmployeePopup({ employee = null, defaultRole = 'driver', defaultVehicleId = '', onClose, onSaved }) {
   const { vehicles } = useMasters();
   const [form, setForm] = useState(() => (employee ? {
     ...EMPTY,
@@ -24,7 +24,7 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
     licenseExpiry: toDayInput(employee.licenseExpiry),
     openingBalance: employee.openingBalance ? Math.abs(employee.openingBalance) : '',
     balanceSide: employee.openingBalance < 0 ? 'advance' : 'owed',
-  } : EMPTY));
+  } : { ...EMPTY, role: defaultRole, vehicleId: defaultVehicleId }));
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -37,10 +37,12 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
       openingBalance: form.balanceSide === 'advance' ? -opening : opening,
     };
     try {
-      if (employee) await apiClient.put(`/payroll/employees/${employee._id}`, payload);
-      else await apiClient.post('/payroll/employees', payload);
-      toast.success(employee ? 'Employee updated' : 'Employee added');
-      onSaved?.();
+      const saved = employee
+        ? await apiClient.put(`/payroll/employees/${employee._id}`, payload)
+        : await apiClient.post('/payroll/employees', payload);
+      const what = form.role === 'driver' ? 'Driver' : 'Employee';
+      toast.success(employee ? `${what} updated` : `${what} added`);
+      onSaved?.(saved);
       onClose();
     } catch (error) {
       toast.error(error.message);
@@ -50,7 +52,7 @@ export default function EmployeePopup({ employee = null, onClose, onSaved }) {
   };
 
   return (
-    <FormPopup title={employee ? 'Edit Employee' : 'Add Employee'} subtitle="Driver, helper, mechanic or office staff" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
+    <FormPopup title={`${employee ? 'Edit' : 'Add'} ${form.role === 'driver' ? 'Driver' : 'Employee'}`} subtitle="Driver, helper, mechanic or office staff" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Employee" tone="blue">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
           <Field label="Name" required htmlFor="emp-name">

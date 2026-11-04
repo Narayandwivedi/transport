@@ -19,6 +19,7 @@ import QuotationEditor from './pages/QuotationEditor';
 import Vehicles from './pages/Vehicles';
 import VehicleDetail from './pages/VehicleDetail';
 import Parties from './pages/Parties';
+import Drivers from './pages/Drivers';
 import PartyLedger from './pages/PartyLedger';
 import Settings from './pages/Settings';
 import Payroll from './pages/Payroll';
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/vehicles/:id" element={<VehicleDetail />} />
         <Route path="/parties" element={<Parties />} />
         <Route path="/parties/:id" element={<PartyLedger />} />
+        <Route path="/drivers" element={<Drivers />} />
         <Route path="/payroll" element={<Payroll />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

@@ -84,7 +84,10 @@ export default function Trips() {
                       <p className="font-mono text-xs font-semibold text-slate-800">{trip.tripNo}</p>
                       <p className="whitespace-nowrap text-xs text-slate-500">{formatDate(trip.date)}</p>
                     </td>
-                    <td className={`${TD} whitespace-nowrap font-mono font-semibold`}>{trip.vehicleId?.vehicleNo || '—'}</td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <p className="font-mono font-semibold">{trip.vehicleId?.vehicleNo || '—'}</p>
+                      {trip.driverId?.name && <p className="text-xs text-slate-500">{trip.driverId.name}</p>}
+                    </td>
                     <td className={TD}>{trip.partyId?.name || '—'}</td>
                     <td className={TD}>
                       <p>{[trip.from, trip.to].filter(Boolean).join(' → ') || '—'}</p>

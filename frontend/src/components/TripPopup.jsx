@@ -9,6 +9,7 @@ import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
 import MaterialPopup from './MaterialPopup';
 import PartyPopup from './PartyPopup';
+import EmployeePopup from './payroll/EmployeePopup';
 import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
@@ -33,7 +34,7 @@ const EMPTY_EXPENSE = { category: '', amount: '', notes: '' };
 const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
-  hireBasis: '', hireQuantity: '', hireRate: '', driverAdvance: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
+  driverId: '', hireBasis: '', hireQuantity: '', hireRate: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
 };
 
 // Routes match without caring about capitals or extra spaces
@@ -80,7 +81,7 @@ const fromTrip = (trip) => ({
   materialAmount: trip.materialAmount || '',
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
-  driverAdvance: trip.driverAdvance || '',
+  driverId: idOf(trip.driverId),
   // Always at least one expense row to fill
   expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '' })) : [EMPTY_EXPENSE],
 });
@@ -110,6 +111,22 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   // Materials we supply, for the dropdown when we supply material
   const [materials, setMaterials] = useState([]);
   const [addingMaterial, setAddingMaterial] = useState(false);
+  // Drivers come from employees with work "driver"
+  const [drivers, setDrivers] = useState([]);
+  const [addingDriver, setAddingDriver] = useState(false);
+  const loadDrivers = async () => {
+    const list = await apiClient.get('/payroll/employees', { params: { role: 'driver' } }).catch(() => []);
+    const rows = Array.isArray(list) ? list : [];
+    setDrivers(rows);
+    return rows;
+  };
+  useEffect(() => {
+    loadDrivers();
+  }, []);
+  // Working drivers, plus the trip's own driver even if they have since left
+  const driverOptions = drivers.filter((driver) => driver.isActive || driver._id === form.driverId);
+  // The driver who works on a vehicle
+  const driverOf = (vehicleId, list = drivers) => list.find((driver) => driver.isActive && idOf(driver.vehicleId) === vehicleId)?._id || '';
   const loadMaterials = async () => {
     const list = await apiClient.get('/materials').catch(() => []);
     setMaterials(Array.isArray(list) ? list : []);
@@ -152,6 +169,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     const picked = vehicles.find((item) => item._id === vehicleId);
     setForm((prev) => {
       const next = { ...prev, vehicleId, ...hireDefaults(picked, prev.billingBasis, prev.quantity) };
+      // The vehicle's own driver, unless one is already picked
+      if (!prev.driverId) next.driverId = driverOf(vehicleId);
       // Already on one of this vehicle's routes: take its rate
       const route = findRoute(picked, next);
       return route ? applyRoute(next, route, picked) : next;
@@ -287,7 +306,17 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Vehicle" required>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
-            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty(true)}>New Party</AddLink>} className="sm:col-span-2">
+            <Field label="Driver" htmlFor="trip-driver" action={<AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
+              <select id="trip-driver" className="input" value={form.driverId} onChange={(event) => set('driverId', event.target.value)}>
+                <option value="">Select driver</option>
+                {driverOptions.map((driver) => (
+                  <option key={driver._id} value={driver._id}>
+                    {driver.name}{driver.vehicleId?.vehicleNo ? ` · ${driver.vehicleId.vehicleNo}` : ''}{driver.isActive ? '' : ' (left)'}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty(true)}>New Party</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required />
             </Field>
           </FieldGrid>
@@ -509,9 +538,6 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         {/* 5 or 6. Other details */}
         <FormSection number={isHired ? 6 : 5} title="Other Details" tone="slate">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
-            <Field label="Driver Advance">
-              <MoneyInput value={form.driverAdvance} onChange={(value) => set('driverAdvance', value)} />
-            </Field>
             <Field label="Status">
               <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>
                 <option value="planned">Planned</option>
@@ -525,6 +551,18 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </div>
         </FormSection>
       </FormPopup>
+
+      {addingDriver && (
+        <EmployeePopup
+          defaultRole="driver"
+          defaultVehicleId={form.vehicleId}
+          onClose={() => setAddingDriver(false)}
+          onSaved={async (driver) => {
+            await loadDrivers();
+            if (driver?._id) set('driverId', driver._id);
+          }}
+        />
+      )}
 
       {addingMaterial && (
         <MaterialPopup
