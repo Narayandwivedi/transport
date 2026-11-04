@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const {
-  Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, MeterReading, Maintenance, Document, Quotation, Employee,
+  Party, Vehicle, Material, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, MeterReading, Maintenance, Document, Quotation, Employee,
 } = require("../models");
 const crudRouter = require("../utils/crud");
 const upload = require("../config/upload");
@@ -93,6 +93,22 @@ router.use("/vehicles", crudRouter(Vehicle, {
       Document.deleteMany({ userId: req.userId, vehicleId: doc._id }),
       Employee.updateMany({ userId: req.userId, vehicleId: doc._id }, { $set: { vehicleId: null } }),
     ]);
+  },
+}));
+
+/* ───────── Materials I supply ───────── */
+router.use("/materials", crudRouter(Material, {
+  sort: { name: 1 },
+  searchFields: ["name"],
+  prepare: async (req, data, old) => {
+    data.name = String(data.name || "").trim();
+    if (!data.name) throw refuse("Enter the material name");
+    // Same name in any capitals counts as the same material
+    const clash = await Material.findOne({ userId: req.userId, name: data.name, ...(old ? { _id: { $ne: old._id } } : {}) })
+      .collation({ locale: "en", strength: 2 })
+      .lean();
+    if (clash) throw refuse("This material is already added");
+    return data;
   },
 }));
 

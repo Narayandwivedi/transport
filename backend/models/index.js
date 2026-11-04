@@ -94,6 +94,17 @@ const vehicleSchema = new Schema(
 );
 vehicleSchema.index({ userId: 1, vehicleNo: 1 }, { unique: true });
 
+// Materials I supply on trips (sand, gitti, cement…), picked from a list on Add Trip
+const materialSchema = new Schema(
+  {
+    ...owner,
+    name: { type: String, trim: true, required: true },
+    notes: text,
+  },
+  { timestamps: true }
+);
+materialSchema.index({ userId: 1, name: 1 });
+
 const tripSchema = new Schema(
   {
     ...owner,
@@ -407,6 +418,7 @@ module.exports = {
   Counter: model("Counter", counterSchema),
   Party: model("Party", partySchema),
   Vehicle: model("Vehicle", vehicleSchema),
+  Material: model("Material", materialSchema),
   Trip: model("Trip", tripSchema),
   Contract: model("Contract", contractSchema),
   Payment: model("Payment", paymentSchema),

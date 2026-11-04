@@ -7,6 +7,7 @@ import { TRIP_BASIS_OPTIONS, calcAmount, getBasisUnit } from '../utils/constants
 import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
+import MaterialPopup from './MaterialPopup';
 import PartyPopup from './PartyPopup';
 import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
@@ -106,6 +107,22 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
   const [addingParty, setAddingParty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Materials we supply, for the dropdown when we supply material
+  const [materials, setMaterials] = useState([]);
+  const [addingMaterial, setAddingMaterial] = useState(false);
+  const loadMaterials = async () => {
+    const list = await apiClient.get('/materials').catch(() => []);
+    setMaterials(Array.isArray(list) ? list : []);
+  };
+  useEffect(() => {
+    loadMaterials();
+  }, []);
+  // An older trip (or one typed before switching) may hold a material not in the list: keep it pickable
+  const materialNames = materials.map((item) => item.name);
+  const typedMaterial = String(form.material || '').trim();
+  const materialOptions = typedMaterial && !materialNames.some((name) => name.toLowerCase() === typedMaterial.toLowerCase())
+    ? [...materialNames, typedMaterial]
+    : materialNames;
 
   const vehicle = vehicles.find((item) => item._id === form.vehicleId);
   const isHired = vehicle?.ownership === 'hired';
@@ -371,9 +388,19 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </div>
 
           <div className={`grid gap-3 md:gap-4 ${suppliesMaterial ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-            <Field label={suppliesMaterial ? 'Which material' : 'Material (optional)'} required={suppliesMaterial} htmlFor="trip-material">
-              <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" required={suppliesMaterial} />
-            </Field>
+            {/* We supply: pick from our materials (or add one here). Party loads: just type what it is */}
+            {suppliesMaterial ? (
+              <Field label="Which material" required htmlFor="trip-material" action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
+                <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
+                  <option value="">Select material</option>
+                  {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </Field>
+            ) : (
+              <Field label="Material (optional)" htmlFor="trip-material">
+                <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
+              </Field>
+            )}
             {suppliesMaterial && (
               <Field label="Material Amount" required>
                 <MoneyInput value={form.materialAmount} onChange={(value) => set('materialAmount', value)} required />
@@ -498,6 +525,16 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           </div>
         </FormSection>
       </FormPopup>
+
+      {addingMaterial && (
+        <MaterialPopup
+          onClose={() => setAddingMaterial(false)}
+          onSaved={async (material) => {
+            await loadMaterials();
+            set('material', material.name);
+          }}
+        />
+      )}
 
       {addingParty && (
         <PartyPopup

@@ -1,12 +1,14 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const { User, Material } = require("../models");
 const { auth, AUTH_COOKIE_NAME, JWT_SECRET } = require("../middleware/auth");
 
 const router = express.Router();
 
-const PROFILE_FIELDS = ["name", "companyName", "email", "mobile", "address", "gstin", "quotationTerms", "documentReminderDays"];
+const DEFAULT_MATERIALS = ["Sand", "Gitti 10mm", "Gitti 20mm", "Gitti 40mm"];
+
+const PROFILE_FIELDS =["name", "companyName", "email", "mobile", "address", "gstin", "quotationTerms", "documentReminderDays"];
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -50,6 +52,8 @@ router.post("/register", async (req, res) => {
     password: await bcrypt.hash(String(password), 10),
     quotationTerms: "1. Rates are valid till the date mentioned.\n2. Loading and unloading by party.\n3. Toll and border tax extra unless mentioned.\n4. Payment within 15 days of bill.",
   });
+  // A new account starts with the usual materials to supply on trips
+  await Material.insertMany(DEFAULT_MATERIALS.map((materialName) => ({ userId: user._id, name: materialName })));
   signIn(res, user);
 });
 
