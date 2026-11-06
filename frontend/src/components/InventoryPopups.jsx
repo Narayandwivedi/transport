@@ -7,12 +7,11 @@ import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } fr
 import { meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { FieldGrid } from './FormSection';
-import Segmented from './Segmented';
 import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
 export function ItemPopup({ item = null, onClose, onSaved }) {
-  const [form, setForm] = useState(() => item || { name: '', category: 'tyre', unit: 'pcs', minStock: '', notes: '' });
+  const [form, setForm] = useState(() => item || { name: '', category: 'tyre', unit: 'pcs', minStock: '', openingQty: '', openingRate: '', notes: '' });
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -21,7 +20,11 @@ export function ItemPopup({ item = null, onClose, onSaved }) {
     try {
       const payload = { name: form.name, category: form.category, unit: form.unit, minStock: form.minStock, notes: form.notes };
       const saved = item ? await apiClient.put(`/inventory/items/${item._id}`, payload) : await apiClient.post('/inventory/items', payload);
-      toast.success('Item saved');
+      // Stock already in hand when the item is added is kept as its first stock-in entry
+      if (!item && toNumber(form.openingQty) > 0) {
+        await apiClient.post('/inventory/txns', { date: todayInput(), type: 'purchase', itemId: saved._id, quantity: form.openingQty, rate: form.openingRate || 0, paidNow: true, notes: 'Opening stock' });
+      }
+      toast.success('Stock item saved');
       onSaved?.(saved);
       onClose();
     } catch (error) {
@@ -32,7 +35,7 @@ export function ItemPopup({ item = null, onClose, onSaved }) {
   };
 
   return (
-    <FormPopup title={item ? 'Edit Item' : 'Add Store Item'} subtitle="Tyres, diesel, oil, spare parts kept in stock" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
+    <FormPopup title={item ? 'Edit Stock Item' : 'Add Stock Item'} subtitle="Tyres, diesel, oil, spare parts kept in stock" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Item" tone="blue">
       <Field label="Item Name" required htmlFor="item-name">
         <input id="item-name" className="input" value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="e.g. MRF Tyre 10.00-20" required autoFocus />
@@ -55,7 +58,19 @@ export function ItemPopup({ item = null, onClose, onSaved }) {
         </Field>
       </FieldGrid>
       </FormSection>
-      <FormSection number={2} title="Stock Alert & Notes" tone="amber">
+      {!item && (
+        <FormSection number={2} title="Opening Stock" tone="emerald" hint="Stock already in hand today. Leave empty if you have none; buy more in Purchases.">
+          <FieldGrid cols={2}>
+            <Field label="Quantity in Hand">
+              <MoneyInput prefix="" suffix={form.unit} value={form.openingQty} onChange={(value) => set('openingQty', value)} />
+            </Field>
+            <Field label="Rate" hint="Used for stock value and issue cost">
+              <MoneyInput value={form.openingRate} onChange={(value) => set('openingRate', value)} suffix={form.unit ? `/${form.unit}` : ''} />
+            </Field>
+          </FieldGrid>
+        </FormSection>
+      )}
+      <FormSection number={item ? 2 : 3} title="Stock Alert & Notes" tone="amber">
         <Field label="Low Stock Alert At" hint="Alert when stock falls to this. 0 = no alert.">
           <MoneyInput prefix="" suffix={form.unit} value={form.minStock} onChange={(value) => set('minStock', value)} />
         </Field>
@@ -80,7 +95,7 @@ export function TxnPopup({ txn = null, items, preset = {}, onClose, onSaved }) {
     vehicleId: idOf(txn.vehicleId),
     partyId: idOf(txn.partyId),
     odometer: txn.odometer || '',
-  } : { date: todayInput(), type: 'purchase', itemId: '', quantity: '', rate: '', partyId: '', paidNow: true, vehicleId: '', odometer: '', notes: '', ...preset }));
+  } : { date: todayInput(), type: 'issue', itemId: '', quantity: '', rate: '', partyId: '', paidNow: true, vehicleId: '', odometer: '', notes: '', ...preset }));
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const item = items.find((row) => row._id === form.itemId);
@@ -118,9 +133,6 @@ export function TxnPopup({ txn = null, items, preset = {}, onClose, onSaved }) {
         </span>
       )}
     >
-      {!txn && (
-        <Segmented className="w-full self-stretch" value={form.type} onChange={(value) => set('type', value)} options={[{ key: 'purchase', label: 'Buy (Stock In)' }, { key: 'issue', label: 'Issue to Vehicle' }]} />
-      )}
       <FormSection number={1} title={isIssue ? 'Item Issued' : 'Item Bought'} tone="blue">
         <FieldGrid cols={2}>
           <Field label="Date" required htmlFor="txn-date">

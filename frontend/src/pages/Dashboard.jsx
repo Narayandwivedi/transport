@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronRight, Gauge, HandCoins, Plus, IndianRupee, Route, TrendingUp, Truck, Wallet,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronRight, Gauge, HandCoins, IndianRupee, PackageMinus, Route, Send, ShoppingCart, TrendingUp, Truck, Wallet,
 } from 'lucide-react';
 import useFetch from '../utils/useFetch';
 import { useAuth } from '../context/AuthContext';
@@ -12,27 +12,20 @@ import StatCard from '../components/StatCard';
 import TripPopup from '../components/TripPopup';
 import ExpensePopup from '../components/ExpensePopup';
 import PaymentPopup from '../components/PaymentPopup';
+import PurchasePopup from '../components/PurchasePopup';
+import { TxnPopup } from '../components/InventoryPopups';
 import { ReadingPopup } from './MeterReadings';
 import { EmptyState, Loading, Page, PageHeader } from '../components/ui';
 
-// Each quick add has its own colour: a strip down the left, a light tint, and a matching icon and + button
-const QUICK_ACTIONS = [
-  {
-    key: 'trip', label: 'Add Trip', hint: 'Per trip, km or ton', icon: Route,
-    strip: 'bg-blue-600', card: 'from-blue-50 ring-blue-200 hover:ring-blue-400', icon_: 'bg-blue-600 shadow-blue-600/30', plus: 'bg-blue-600/10 text-blue-700 group-hover:bg-blue-600 group-hover:text-white',
-  },
-  {
-    key: 'expense', label: 'Add Expense', hint: 'Diesel, repair, toll', icon: Wallet,
-    strip: 'bg-rose-600', card: 'from-rose-50 ring-rose-200 hover:ring-rose-400', icon_: 'bg-rose-600 shadow-rose-600/30', plus: 'bg-rose-600/10 text-rose-700 group-hover:bg-rose-600 group-hover:text-white',
-  },
-  {
-    key: 'payment', label: 'Payment', hint: 'Money in or out', icon: HandCoins,
-    strip: 'bg-emerald-600', card: 'from-emerald-50 ring-emerald-200 hover:ring-emerald-400', icon_: 'bg-emerald-600 shadow-emerald-600/30', plus: 'bg-emerald-600/10 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white',
-  },
-  {
-    key: 'reading', label: 'Meter Reading', hint: 'Opening & closing km', icon: Gauge,
-    strip: 'bg-amber-500', card: 'from-amber-50 ring-amber-200 hover:ring-amber-400', icon_: 'bg-amber-500 shadow-amber-500/30', plus: 'bg-amber-500/10 text-amber-700 group-hover:bg-amber-500 group-hover:text-white',
-  },
+// Quick entry tiles: small white tiles on a blue band, so many fit in little space
+const QUICK_ENTRIES = [
+  { key: 'trip', label: 'Add Trip', icon: Route, tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
+  { key: 'expense', label: 'Add Expense', icon: Wallet, tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
+  { key: 'received', label: 'Money Received', icon: HandCoins, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  { key: 'paid', label: 'Money Paid', icon: Send, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
+  { key: 'reading', label: 'Meter Reading', icon: Gauge, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
+  { key: 'purchase', label: 'Add Purchase', icon: ShoppingCart, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
+  { key: 'issue', label: 'Issue Stock', icon: PackageMinus, tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' },
 ];
 
 const greeting = () => {
@@ -47,6 +40,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [popup, setPopup] = useState('');
   const { data, loading, reload } = useFetch('/dashboard');
+  // Stock items, fetched only while a purchase or an issue is being added
+  const { data: stockItems, reload: reloadStockItems } = useFetch(popup === 'purchase' || popup === 'issue' ? '/inventory/items' : '', {}, []);
 
   if (loading && !data) return <Page><Loading /></Page>;
   if (!data) return <Page><EmptyState title="Could not load the dashboard" hint="Check that the backend is running." /></Page>;
@@ -89,23 +84,27 @@ export default function Dashboard() {
         <StatCard compact icon={CalendarClock} tone="slate" label="Given Out (monthly)" value={givenOut} />
       </section>
 
-      <section className="space-y-2.5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 via-slate-50 to-primary-50/60 p-3 shadow-inner md:p-4">
-        <h2 className="flex items-center gap-1.5 px-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600"><Plus size={13} className="text-primary-600" />Quick Add</h2>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
-          {QUICK_ACTIONS.map(({ key, label, hint, icon: Icon, strip, card, icon_: iconTone, plus }) => (
+      <section className="panel @container bg-gradient-to-r from-primary-700 to-primary-600 ring-primary-700">
+        <div className="panel-header border-white/15 py-2.5">
+          <h2 className="text-sm font-bold text-white">Quick Entry</h2>
+          <p className="text-xs text-primary-100">Add today's entries without leaving the dashboard</p>
+        </div>
+        {/*
+          Columns follow the panel's own width. Phones and tablets: four tiles a row, the icon above the label
+          (beside it once there is room). Wide screens: all seven in one row.
+        */}
+        <div className="grid grid-cols-4 gap-1.5 p-2 @xl:gap-2 @xl:p-2.5 @5xl:grid-cols-7 md:gap-2.5 md:p-3">
+          {QUICK_ENTRIES.map(({ key, label, icon: Icon, tone }) => (
             <button
               key={key}
               type="button"
               onClick={() => setPopup(key)}
-              className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r to-white py-3 pl-4 pr-3 text-left shadow-xs ring-1 transition hover:-translate-y-0.5 hover:shadow-md md:py-4 md:pl-5 ${card}`}
+              className="group flex flex-col items-center gap-1 rounded-lg bg-white px-1 py-2 text-center shadow-sm transition hover:bg-primary-50 hover:shadow-md @xl:flex-row @xl:gap-2 @xl:rounded-xl @xl:p-2 @xl:text-left @5xl:flex-col @5xl:gap-1 @5xl:px-1 @5xl:text-center @[90rem]:flex-row @[90rem]:gap-2 @[90rem]:px-2 @[90rem]:text-left"
             >
-              <span className={`absolute inset-y-0 left-0 w-1.5 ${strip}`} aria-hidden="true" />
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md ${iconTone}`}><Icon size={20} /></span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold leading-tight text-slate-800 sm:truncate">{label}</span>
-                <span className="hidden truncate text-xs text-slate-500 sm:block">{hint}</span>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset @xl:h-8 @xl:w-8 ${tone}`}>
+                <Icon className="h-4 w-4 @xl:h-[17px] @xl:w-[17px]" />
               </span>
-              <span className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded-full transition sm:flex ${plus}`}><Plus size={16} /></span>
+              <span className="min-w-0 text-[11px] font-semibold leading-tight text-slate-700 group-hover:text-slate-900 @xl:text-[13px] @5xl:text-[12px] @[90rem]:text-[13px]">{label}</span>
             </button>
           ))}
         </div>
@@ -175,8 +174,10 @@ export default function Dashboard() {
 
       {popup === 'trip' && <TripPopup onClose={() => setPopup('')} onSaved={reload} />}
       {popup === 'expense' && <ExpensePopup onClose={() => setPopup('')} onSaved={reload} />}
-      {popup === 'payment' && <PaymentPopup onClose={() => setPopup('')} onSaved={reload} />}
+      {(popup === 'received' || popup === 'paid') && <PaymentPopup preset={{ type: popup }} onClose={() => setPopup('')} onSaved={reload} />}
       {popup === 'reading' && <ReadingPopup onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'purchase' && <PurchasePopup items={stockItems || []} onClose={() => setPopup('')} onSaved={reload} onItemAdded={reloadStockItems} />}
+      {popup === 'issue' && <TxnPopup items={stockItems || []} preset={{ type: 'issue' }} onClose={() => setPopup('')} onSaved={reload} />}
     </Page>
   );
 }

@@ -1,5 +1,5 @@
 const {
-  User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Maintenance, Document, Employee,
+  User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, Maintenance, Document, Employee,
 } = require("../models");
 const { contractAmount, contractSegments, dayNum, todayNum, round2, toNumber, idOf, DAY_MS } = require("./common");
 
@@ -134,12 +134,13 @@ const monthlyTrend = async (userId, months = 6) => {
 const partyLedger = async (userId, partyId, asOf = new Date()) => {
   const party = await Party.findOne({ _id: partyId, userId }).lean();
   if (!party) return null;
-  const [billedTrips, hireTrips, contracts, payments, purchases] = await Promise.all([
+  const [billedTrips, hireTrips, contracts, payments, purchases, purchaseBills] = await Promise.all([
     Trip.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
     Trip.find({ userId, hirePartyId: partyId, hireAmount: { $gt: 0 } }).populate("vehicleId", "vehicleNo").lean(),
     Contract.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
     Payment.find({ userId, partyId }).lean(),
     InventoryTxn.find({ userId, partyId, type: "purchase", paidNow: false }).populate("itemId", "name unit").lean(),
+    Purchase.find({ userId, partyId }).lean(),
   ]);
 
   const rows = [];
@@ -191,6 +192,28 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     debit: 0,
     credit: toNumber(purchase.amount),
   }));
+
+  purchaseBills.forEach((bill) => {
+    const ref = [bill.purchaseNo, bill.supplierInvoice ? `Bill ${bill.supplierInvoice}` : ""].filter(Boolean).join(" · ");
+    rows.push({
+      date: bill.date,
+      kind: "Purchase",
+      ref,
+      details: (bill.items || []).map((line) => `${line.name} × ${line.quantity} ${line.unit || ""}`.trim()).join(", "),
+      debit: 0,
+      credit: toNumber(bill.totalAmount),
+    });
+    if (toNumber(bill.paidAmount) > 0) {
+      rows.push({
+        date: bill.date,
+        kind: "Paid",
+        ref,
+        details: `Paid on purchase (${String(bill.mode || "cash").toUpperCase()})`,
+        debit: toNumber(bill.paidAmount),
+        credit: 0,
+      });
+    }
+  });
 
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
   let balance = toNumber(party.openingBalance);

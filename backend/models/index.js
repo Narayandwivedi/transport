@@ -248,6 +248,8 @@ const inventoryTxnSchema = new Schema(
     // purchase: bought from this supplier (on credit unless paid in cash)
     partyId: ref("Party"),
     paidNow: { type: Boolean, default: true },
+    // purchase: a line of this purchase bill; it is changed through the bill
+    purchaseId: ref("Purchase"),
     // issue: fitted / filled in this vehicle
     vehicleId: ref("Vehicle"),
     odometer: money,
@@ -255,6 +257,40 @@ const inventoryTxnSchema = new Schema(
   },
   { timestamps: true }
 );
+
+/**
+ * A purchase bill: stock items bought from a supplier (or for cash) in one go.
+ * Each line adds stock through a linked InventoryTxn; the bill total goes to the supplier ledger,
+ * less whatever was paid on the spot.
+ */
+const purchaseSchema = new Schema(
+  {
+    ...owner,
+    purchaseNo: { type: String, trim: true, required: true },
+    date: { type: Date, required: true },
+    // Empty: a cash purchase with no party saved
+    partyId: ref("Party"),
+    supplierInvoice: text,
+    items: [
+      {
+        _id: false,
+        itemId: { type: ObjectId, ref: "InventoryItem", required: true },
+        name: text,
+        unit: text,
+        quantity: { type: Number, required: true, min: 0 },
+        rate: money,
+        amount: money,
+      },
+    ],
+    totalAmount: money,
+    // Paid on the spot; the rest is owed to the supplier
+    paidAmount: money,
+    mode: { type: String, enum: ["cash", "bank", "upi", "cheque"], default: "cash" },
+    notes: text,
+  },
+  { timestamps: true }
+);
+purchaseSchema.index({ userId: 1, date: -1 });
 
 // One day's (or trip's) run of a vehicle: odometer at the start and at the end
 const meterReadingSchema = new Schema(
@@ -430,6 +466,7 @@ module.exports = {
   Expense: model("Expense", expenseSchema),
   InventoryItem: model("InventoryItem", inventoryItemSchema),
   InventoryTxn: model("InventoryTxn", inventoryTxnSchema),
+  Purchase: model("Purchase", purchaseSchema),
   MeterReading: model("MeterReading", meterReadingSchema),
   Maintenance: model("Maintenance", maintenanceSchema),
   Document: model("Document", documentSchema),

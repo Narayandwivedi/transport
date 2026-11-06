@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Boxes, Package, Pencil, Plus, ReceiptText, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
@@ -9,6 +9,7 @@ import StatCard from '../components/StatCard';
 import Segmented from '../components/Segmented';
 import MonthFilter from '../components/MonthFilter';
 import { ItemPopup, TxnPopup } from '../components/InventoryPopups';
+import PurchasePopup from '../components/PurchasePopup';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
 
 export default function Inventory() {
@@ -17,8 +18,12 @@ export default function Inventory() {
   const [txnType, setTxnType] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [editingTxn, setEditingTxn] = useState(null);
+  const [editingPurchase, setEditingPurchase] = useState(null);
   const { data: items, loading, error, reload: reloadItems } = useFetch('/inventory/items', {}, []);
   const { data: txns, loading: txnLoading, reload: reloadTxns } = useFetch('/inventory/txns', { ...monthBounds(month), type: txnType }, []);
+  const { data: purchases, loading: purchaseLoading, reload: reloadPurchases } = useFetch('/purchases', monthBounds(month), []);
+  const purchaseList = purchases || [];
+  const purchaseDue = purchaseList.reduce((total, bill) => total + Math.max(0, bill.totalAmount - bill.paidAmount), 0);
 
   const itemList = items || [];
   const txnList = txns || [];
@@ -30,6 +35,27 @@ export default function Inventory() {
   const reload = () => {
     reloadItems();
     reloadTxns();
+    reloadPurchases();
+  };
+
+  // A stock line from a purchase bill is changed through its bill
+  const openPurchaseOf = async (txn) => {
+    try {
+      setEditingPurchase(await apiClient.get(`/purchases/${txn.purchaseId}`));
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const deletePurchase = async (bill) => {
+    if (!window.confirm(`Delete purchase ${bill.purchaseNo}? Its stock is taken back out.`)) return;
+    try {
+      await apiClient.delete(`/purchases/${bill._id}`);
+      toast.success('Purchase deleted');
+      reload();
+    } catch (err) {
+      toast.error(err.message);
+    }
   };
 
   const deleteItem = async (item) => {
@@ -56,26 +82,26 @@ export default function Inventory() {
 
   return (
     <Page>
-      <PageHeader title="Inventory" subtitle="Tyres, diesel, oil and spares: buy into store, issue to vehicles">
-        <button type="button" className="btn-secondary" onClick={() => setEditingItem({})}><Plus size={16} /> New Item</button>
+      <PageHeader title="Stock & Purchase" subtitle="Stock items (tyres, diesel, oil, spares): buy from suppliers into store, issue to vehicles">
+        <button type="button" className="btn-secondary" onClick={() => setEditingItem({})}><Plus size={16} /> New Stock Item</button>
         <button type="button" className="btn-secondary" onClick={() => setEditingTxn({ type: 'issue' })} disabled={!itemList.length}><ArrowUpFromLine size={16} /> Issue</button>
-        <button type="button" className="btn-primary" onClick={() => setEditingTxn({ type: 'purchase' })} disabled={!itemList.length}><ArrowDownToLine size={16} /> Buy Stock</button>
+        <button type="button" className="btn-primary" onClick={() => setEditingPurchase({})}><ShoppingCart size={16} /> Add Purchase</button>
       </PageHeader>
       <ErrorBox message={error} />
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <StatCard compact icon={Boxes} tone="indigo" label="Stock Value" value={formatRupees(stockValue)} hint={`${itemList.length} items`} />
         <StatCard compact icon={AlertTriangle} tone={lowStock.length ? 'rose' : 'slate'} label="Low Stock" value={lowStock.length} hint={lowStock.map((item) => item.name).join(', ') || 'All fine'} />
-        <StatCard compact icon={ArrowDownToLine} tone="emerald" label="Bought (month)" value={formatRupees(bought)} />
+        <StatCard compact icon={ArrowDownToLine} tone="emerald" label="Bought (month)" value={formatRupees(bought)} hint={purchaseDue > 0 ? `${formatRupees(purchaseDue)} still to pay` : `${purchaseList.length} purchase bills`} />
         <StatCard compact icon={ArrowUpFromLine} tone="amber" label="Issued (month)" value={formatRupees(issued)} hint="Booked to vehicles" />
       </section>
 
-      <Segmented value={tab} onChange={setTab} options={[{ key: 'stock', label: 'Stock in Hand', icon: Package }, { key: 'entries', label: 'Purchases & Issues', icon: ArrowDownToLine }]} />
+      <Segmented value={tab} onChange={setTab} options={[{ key: 'stock', label: 'Stock in Hand', icon: Package }, { key: 'purchases', label: 'Purchases', icon: ReceiptText }, { key: 'entries', label: 'Stock In & Out', icon: ArrowDownToLine }]} />
 
       {tab === 'stock' ? (
         <section className="panel">
           <PanelHeader title="Items" count={itemList.length} onRefresh={reload} loading={loading} />
-          {loading && !itemList.length ? <Loading /> : itemList.length === 0 ? <EmptyState title="No items yet" hint='Add tyres, diesel, oil… with "New Item", then "Buy Stock".' /> : (
+          {loading && !itemList.length ? <Loading /> : itemList.length === 0 ? <EmptyState title="No items yet" hint='Add tyres, diesel, oil… with "New Stock Item", then "Add Purchase".' /> : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left">
                 <thead>
@@ -103,10 +129,59 @@ export default function Inventory() {
                         <td className={`${TD} text-right`}>{formatRupees(Math.max(0, item.stockQty) * item.avgRate)}</td>
                         <td className={TD}>
                           <div className="flex justify-end">
-                            <RowAction title="Buy" icon={ArrowDownToLine} tone="emerald" onClick={() => setEditingTxn({ type: 'purchase', itemId: item._id })} />
+                            <RowAction title="Buy" icon={ArrowDownToLine} tone="emerald" onClick={() => setEditingPurchase({ preset: { itemId: item._id } })} />
                             <RowAction title="Issue" icon={ArrowUpFromLine} tone="amber" onClick={() => setEditingTxn({ type: 'issue', itemId: item._id })} />
                             <RowAction title="Edit" icon={Pencil} onClick={() => setEditingItem(item)} />
                             <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => deleteItem(item)} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : tab === 'purchases' ? (
+        <section className="panel">
+          <PanelHeader title="Purchase Bills" count={purchaseList.length} onRefresh={reload} loading={purchaseLoading}>
+            <MonthFilter value={month} onChange={setMonth} />
+          </PanelHeader>
+          {purchaseLoading && !purchaseList.length ? <Loading /> : purchaseList.length === 0 ? <EmptyState title="No purchases this month" hint='Use "Add Purchase" to buy stock items from a supplier.' /> : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-left">
+                <thead>
+                  <tr>
+                    <th className={TH}>Date</th>
+                    <th className={TH}>Purchase</th>
+                    <th className={TH}>Supplier</th>
+                    <th className={TH}>Items</th>
+                    <th className={`${TH} text-right`}>Total</th>
+                    <th className={`${TH} text-right`}>Paid</th>
+                    <th className={`${TH} text-right`}>Due</th>
+                    <th className={TH} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchaseList.map((bill) => {
+                    const due = bill.totalAmount - bill.paidAmount;
+                    return (
+                      <tr key={bill._id} className="tbl-row cursor-pointer" onClick={() => setEditingPurchase(bill)}>
+                        <td className={`${TD} whitespace-nowrap`}>{formatDate(bill.date)}</td>
+                        <td className={TD}>
+                          <p className="font-mono font-semibold text-slate-800">{bill.purchaseNo}</p>
+                          {bill.supplierInvoice && <p className="text-xs text-slate-500">Bill {bill.supplierInvoice}</p>}
+                        </td>
+                        <td className={TD}>{bill.partyId?.name || 'Cash'}</td>
+                        <td className={`${TD} text-xs`}>{(bill.items || []).map((line) => `${line.name} × ${formatNumber(line.quantity)} ${line.unit}`).join(', ')}</td>
+                        <td className={`${TD} text-right font-semibold`}>{formatRupees(bill.totalAmount)}</td>
+                        <td className={`${TD} text-right`}>{formatRupees(bill.paidAmount)}</td>
+                        <td className={`${TD} text-right`}>{due > 0 ? <span className="font-semibold text-rose-700">{formatRupees(due)}</span> : <span className="badge-green">Paid</span>}</td>
+                        <td className={TD} onClick={(event) => event.stopPropagation()}>
+                          <div className="flex justify-end">
+                            <RowAction title="Edit" icon={Pencil} onClick={() => setEditingPurchase(bill)} />
+                            <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => deletePurchase(bill)} />
                           </div>
                         </td>
                       </tr>
@@ -155,8 +230,14 @@ export default function Inventory() {
                       <td className={`${TD} text-right font-semibold`}>{formatRupees(txn.amount)}</td>
                       <td className={TD}>
                         <div className="flex justify-end">
-                          <RowAction title="Edit" icon={Pencil} onClick={() => setEditingTxn(txn)} />
-                          <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => deleteTxn(txn)} />
+                          {txn.purchaseId ? (
+                            <RowAction title="Open purchase bill" icon={ReceiptText} onClick={() => openPurchaseOf(txn)} />
+                          ) : (
+                            <>
+                              <RowAction title="Edit" icon={Pencil} onClick={() => setEditingTxn(txn)} />
+                              <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => deleteTxn(txn)} />
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -176,6 +257,16 @@ export default function Inventory() {
           items={itemList}
           onClose={() => setEditingTxn(null)}
           onSaved={reload}
+        />
+      )}
+      {editingPurchase && (
+        <PurchasePopup
+          purchase={editingPurchase._id ? editingPurchase : null}
+          preset={editingPurchase.preset || {}}
+          items={itemList}
+          onClose={() => setEditingPurchase(null)}
+          onSaved={reload}
+          onItemAdded={reloadItems}
         />
       )}
     </Page>

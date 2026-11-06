@@ -10,6 +10,7 @@ import MonthlyHire from './pages/MonthlyHire';
 import Payments from './pages/Payments';
 import Expenses from './pages/Expenses';
 import Inventory from './pages/Inventory';
+import StockItems from './pages/StockItems';
 import MeterReadings from './pages/MeterReadings';
 import Maintenance from './pages/Maintenance';
 import Documents from './pages/Documents';
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/parties" element={<Parties />} />
         <Route path="/parties/:id" element={<PartyLedger />} />
         <Route path="/drivers" element={<Drivers />} />
+        <Route path="/stock-items" element={<StockItems />} />
         <Route path="/payroll" element={<Payroll />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
