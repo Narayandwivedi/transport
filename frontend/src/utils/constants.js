@@ -53,6 +53,7 @@ export const PARTY_TYPE_OPTIONS = [
   { value: 'customer', label: 'Customer', hint: 'I carry goods / give vehicle to them' },
   { value: 'transporter', label: 'Vehicle Owner', hint: 'I hire vehicles from them' },
   { value: 'supplier', label: 'Supplier', hint: 'Tyres, diesel, spare parts' },
+  { value: 'pump', label: 'Petrol Pump', hint: 'Vehicles fill diesel here' },
   { value: 'other', label: 'Other', hint: '' },
 ];
 

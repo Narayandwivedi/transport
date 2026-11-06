@@ -81,6 +81,16 @@ const contractAmount = (contract, from, to) => round2(
 
 const idOf = (value) => String(value?._id || value || "");
 
+// Quantity × rate, the rate itself for a fixed amount, or tons × km × rate per ton per km
+const lineAmount = (basis, quantity, rate, km = 0) => {
+  if (basis === "fixed") return round2(toNumber(rate));
+  if (basis === "per_ton_km") return round2(toNumber(quantity) * toNumber(km) * toNumber(rate));
+  return round2(toNumber(quantity) * toNumber(rate));
+};
+
+// "raipur|bilaspur": a route matched without caring about capitals or spaces
+const routeKey = (row) => `${String(row.from || "").trim().toLowerCase()}|${String(row.to || "").trim().toLowerCase()}`;
+
 module.exports = {
   DAY_MS,
   dayNum,
@@ -95,4 +105,6 @@ module.exports = {
   contractSegments,
   contractAmount,
   idOf,
+  lineAmount,
+  routeKey,
 };

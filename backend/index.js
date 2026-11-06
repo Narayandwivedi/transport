@@ -9,7 +9,7 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const { auth } = require("./middleware/auth");
 const authRoutes = require("./routes/authRoutes");
-const apiRoutes = require("./routes/apiRoutes");
+const apiRoutes = require("./routes");
 
 const app = express();
 const PORT = process.env.PORT || 5050;

@@ -52,7 +52,7 @@ export default function PaymentPopup({ payment = null, preset = {}, onClose, onS
             <MoneyInput value={form.amount} onChange={(value) => set('amount', value)} required />
           </Field>
           <Field label={form.type === 'received' ? 'Received From' : 'Paid To'} required className="sm:col-span-2">
-            <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={form.type === 'received' ? ['customer'] : ['transporter', 'supplier']} required />
+            <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={form.type === 'received' ? ['customer'] : ['transporter', 'supplier', 'pump']} required />
           </Field>
         </FieldGrid>
       </FormSection>

@@ -1,5 +1,5 @@
 const {
-  User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, Maintenance, Document, Employee,
+  User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, DieselEntry, Maintenance, Document, Employee,
 } = require("../models");
 const { contractAmount, contractSegments, dayNum, todayNum, round2, toNumber, idOf, DAY_MS } = require("./common");
 
@@ -134,13 +134,14 @@ const monthlyTrend = async (userId, months = 6) => {
 const partyLedger = async (userId, partyId, asOf = new Date()) => {
   const party = await Party.findOne({ _id: partyId, userId }).lean();
   if (!party) return null;
-  const [billedTrips, hireTrips, contracts, payments, purchases, purchaseBills] = await Promise.all([
+  const [billedTrips, hireTrips, contracts, payments, purchases, purchaseBills, dieselFills] = await Promise.all([
     Trip.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
     Trip.find({ userId, hirePartyId: partyId, hireAmount: { $gt: 0 } }).populate("vehicleId", "vehicleNo").lean(),
     Contract.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
     Payment.find({ userId, partyId }).lean(),
     InventoryTxn.find({ userId, partyId, type: "purchase", paidNow: false }).populate("itemId", "name unit").lean(),
     Purchase.find({ userId, partyId }).lean(),
+    DieselEntry.find({ userId, partyId, mode: "credit" }).populate("vehicleId", "vehicleNo").lean(),
   ]);
 
   const rows = [];
@@ -214,6 +215,16 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
       });
     }
   });
+
+  // Diesel filled on credit at this pump
+  dieselFills.forEach((fill) => rows.push({
+    date: fill.date,
+    kind: "Diesel",
+    ref: [fill.entryNo, fill.billNo ? `Bill ${fill.billNo}` : ""].filter(Boolean).join(" · "),
+    details: `${fill.vehicleId?.vehicleNo || ""} · ${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`.trim(),
+    debit: 0,
+    credit: toNumber(fill.amount),
+  }));
 
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
   let balance = toNumber(party.openingBalance);

@@ -8,6 +8,7 @@ import { currentMonthInput, formatDate, formatRupees, monthBounds } from '../uti
 import StatCard from '../components/StatCard';
 import MonthFilter from '../components/MonthFilter';
 import ExpensePopup from '../components/ExpensePopup';
+import DieselPopup from '../components/DieselPopup';
 import { VehicleSelect } from '../components/Pickers';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
 
@@ -16,6 +17,7 @@ const SOURCE_BADGE = {
   maintenance: { label: 'Service', className: 'badge-orange' },
   payroll: { label: 'Payroll', className: 'badge-green' },
   trip: { label: 'Trip', className: 'badge-blue' },
+  diesel: { label: 'Pump Fill', className: 'badge-orange' },
 };
 
 export default function Expenses() {
@@ -23,6 +25,7 @@ export default function Expenses() {
   const [vehicleId, setVehicleId] = useState('');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
+  const [editingDiesel, setEditingDiesel] = useState(null);
   const { vehicles } = useMasters();
   const { data: expenses, loading, error, reload } = useFetch('/expenses', { ...monthBounds(month), vehicleId, search }, []);
 
@@ -35,7 +38,15 @@ export default function Expenses() {
   const byCategory = Object.entries(list.reduce((acc, row) => ({ ...acc, [row.category]: (acc[row.category] || 0) + row.amount }), {}))
     .sort((a, b) => b[1] - a[1]);
 
-  const handleEdit = (expense) => {
+  const handleEdit = async (expense) => {
+    if (expense.source === 'diesel') {
+      try {
+        setEditingDiesel(await apiClient.get(`/diesel-entries/${expense.dieselEntryId}`));
+      } catch (err) {
+        toast.error(err.message);
+      }
+      return;
+    }
     if (['inventory', 'payroll', 'trip'].includes(expense.source)) {
       toast.info({
         inventory: 'This came from issuing store stock. Change it in Inventory.',
@@ -117,7 +128,7 @@ export default function Expenses() {
                     <td className={TD}>
                       <div className="flex justify-end">
                         <RowAction title="Edit" icon={Pencil} onClick={() => handleEdit(expense)} />
-                        {!['inventory', 'payroll', 'trip'].includes(expense.source) && <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => handleDelete(expense)} />}
+                        {!['inventory', 'payroll', 'trip', 'diesel'].includes(expense.source) && <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => handleDelete(expense)} />}
                       </div>
                     </td>
                   </tr>
@@ -129,6 +140,7 @@ export default function Expenses() {
       </section>
 
       {editing && <ExpensePopup expense={editing._id ? editing : null} onClose={() => setEditing(null)} onSaved={reload} />}
+      {editingDiesel && <DieselPopup entry={editingDiesel} onClose={() => setEditingDiesel(null)} onSaved={reload} />}
     </Page>
   );
 }

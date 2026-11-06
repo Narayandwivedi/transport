@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bell, Route, CalendarClock, Wallet, Package, Gauge, Wrench, FileBadge, ChartColumn,
-  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes,
+  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel,
 } from 'lucide-react';
 import Logo from './Logo';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ const navGroups = [
       { to: '/monthly-hire', icon: CalendarClock, label: 'Monthly Hire' },
       { to: '/payments', icon: HandCoins, label: 'Payments' },
       { to: '/expenses', icon: Wallet, label: 'Expenses' },
+      { to: '/diesel', icon: Fuel, label: 'Diesel' },
       { to: '/inventory', icon: Package, label: 'Stock & Purchase' },
       { to: '/payroll', icon: IdCard, label: 'Payroll' },
     ],

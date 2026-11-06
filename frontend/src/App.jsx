@@ -11,6 +11,7 @@ import Payments from './pages/Payments';
 import Expenses from './pages/Expenses';
 import Inventory from './pages/Inventory';
 import StockItems from './pages/StockItems';
+import Diesel from './pages/Diesel';
 import MeterReadings from './pages/MeterReadings';
 import Maintenance from './pages/Maintenance';
 import Documents from './pages/Documents';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/monthly-hire" element={<MonthlyHire />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/expenses" element={<Expenses />} />
+        <Route path="/diesel" element={<Diesel />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/meter-readings" element={<MeterReadings />} />
         <Route path="/maintenance" element={<Maintenance />} />

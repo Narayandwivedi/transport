@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronRight, Gauge, HandCoins, IndianRupee, PackageMinus, Route, Send, ShoppingCart, TrendingUp, Truck, Wallet,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronRight, Fuel, Gauge, HandCoins, IndianRupee, PackageMinus, Route, Send, ShoppingCart, TrendingUp, Truck, Wallet,
 } from 'lucide-react';
 import useFetch from '../utils/useFetch';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ import TripPopup from '../components/TripPopup';
 import ExpensePopup from '../components/ExpensePopup';
 import PaymentPopup from '../components/PaymentPopup';
 import PurchasePopup from '../components/PurchasePopup';
+import DieselPopup from '../components/DieselPopup';
 import { TxnPopup } from '../components/InventoryPopups';
 import { ReadingPopup } from './MeterReadings';
 import { EmptyState, Loading, Page, PageHeader } from '../components/ui';
@@ -20,6 +21,7 @@ import { EmptyState, Loading, Page, PageHeader } from '../components/ui';
 // Quick entry tiles: small white tiles on a blue band, so many fit in little space
 const QUICK_ENTRIES = [
   { key: 'trip', label: 'Add Trip', icon: Route, tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
+  { key: 'diesel', label: 'Diesel Purchase', icon: Fuel, tone: 'bg-orange-50 text-orange-700 ring-orange-100' },
   { key: 'expense', label: 'Add Expense', icon: Wallet, tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
   { key: 'received', label: 'Money Received', icon: HandCoins, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   { key: 'paid', label: 'Money Paid', icon: Send, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
@@ -91,9 +93,9 @@ export default function Dashboard() {
         </div>
         {/*
           Columns follow the panel's own width. Phones and tablets: four tiles a row, the icon above the label
-          (beside it once there is room). Wide screens: all seven in one row.
+          (beside it once there is room). Wide screens: all eight in one row.
         */}
-        <div className="grid grid-cols-4 gap-1.5 p-2 @xl:gap-2 @xl:p-2.5 @5xl:grid-cols-7 md:gap-2.5 md:p-3">
+        <div className="grid grid-cols-4 gap-1.5 p-2 @xl:gap-2 @xl:p-2.5 @5xl:grid-cols-8 md:gap-2.5 md:p-3">
           {QUICK_ENTRIES.map(({ key, label, icon: Icon, tone }) => (
             <button
               key={key}
@@ -173,6 +175,7 @@ export default function Dashboard() {
       </section>
 
       {popup === 'trip' && <TripPopup onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'diesel' && <DieselPopup onClose={() => setPopup('')} onSaved={reload} />}
       {popup === 'expense' && <ExpensePopup onClose={() => setPopup('')} onSaved={reload} />}
       {(popup === 'received' || popup === 'paid') && <PaymentPopup preset={{ type: popup }} onClose={() => setPopup('')} onSaved={reload} />}
       {popup === 'reading' && <ReadingPopup onClose={() => setPopup('')} onSaved={reload} />}
