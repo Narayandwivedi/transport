@@ -84,10 +84,10 @@ export default function Dashboard() {
         <StatCard compact icon={CalendarClock} tone="slate" label="Given Out (monthly)" value={givenOut} />
       </section>
 
-      <section className="panel @container bg-gradient-to-r from-primary-700 to-primary-600 ring-primary-700">
+      <section className="panel @container bg-gradient-to-r from-[#1f2a3c] via-[#27374f] to-[#314866] ring-[#1f2a3c]">
         <div className="panel-header border-white/15 py-2.5">
           <h2 className="text-sm font-bold text-white">Quick Entry</h2>
-          <p className="text-xs text-primary-100">Add today's entries without leaving the dashboard</p>
+          <p className="text-xs text-slate-300">Add today's entries without leaving the dashboard</p>
         </div>
         {/*
           Columns follow the panel's own width. Phones and tablets: four tiles a row, the icon above the label
@@ -99,7 +99,7 @@ export default function Dashboard() {
               key={key}
               type="button"
               onClick={() => setPopup(key)}
-              className="group flex flex-col items-center gap-1 rounded-lg bg-white px-1 py-2 text-center shadow-sm transition hover:bg-primary-50 hover:shadow-md @xl:flex-row @xl:gap-2 @xl:rounded-xl @xl:p-2 @xl:text-left @5xl:flex-col @5xl:gap-1 @5xl:px-1 @5xl:text-center @[90rem]:flex-row @[90rem]:gap-2 @[90rem]:px-2 @[90rem]:text-left"
+              className="group flex flex-col items-center gap-1 rounded-lg bg-white px-1 py-2 text-center shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-50 hover:shadow-md @xl:flex-row @xl:gap-2 @xl:rounded-xl @xl:p-2 @xl:text-left @5xl:flex-col @5xl:gap-1 @5xl:px-1 @5xl:text-center @[90rem]:flex-row @[90rem]:gap-2 @[90rem]:px-2 @[90rem]:text-left"
             >
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset @xl:h-8 @xl:w-8 ${tone}`}>
                 <Icon className="h-4 w-4 @xl:h-[17px] @xl:w-[17px]" />
