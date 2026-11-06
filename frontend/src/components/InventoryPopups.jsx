@@ -4,6 +4,7 @@ import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
 import { INVENTORY_CATEGORY_OPTIONS } from '../utils/constants';
 import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
+import { meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { FieldGrid } from './FormSection';
 import Segmented from './Segmented';
@@ -148,8 +149,8 @@ export function TxnPopup({ txn = null, items, preset = {}, onClose, onSaved }) {
             <Field label="Vehicle" required>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => set('vehicleId', value)} required />
             </Field>
-            <Field label="Odometer" hint="When fitted / filled">
-              <MoneyInput prefix="" suffix="km" value={form.odometer} onChange={(value) => set('odometer', value)} />
+            <Field label="Meter Reading" hint="When fitted / filled">
+              <MoneyInput prefix="" suffix={meterUnitOf(vehicles.find((item) => item._id === form.vehicleId))} value={form.odometer} onChange={(value) => set('odometer', value)} />
             </Field>
           </FieldGrid>
         </FormSection>

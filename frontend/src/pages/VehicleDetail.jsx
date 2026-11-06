@@ -17,7 +17,7 @@ import DocumentTable from '../components/DocumentTable';
 import MaintenanceTable from '../components/MaintenanceTable';
 import { DonePopup, ScheduleForm } from '../components/MaintenancePopups';
 import { ReadingPopup } from './MeterReadings';
-import { closingOf, openingOf, runOf } from '../utils/meter';
+import { closingOf, formatMeter, meterUnitOf, openingOf, runOf } from '../utils/meter';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, TD, TH } from '../components/ui';
 
 const TABS = [
@@ -106,7 +106,7 @@ export default function VehicleDetail() {
         <StatCard compact icon={IndianRupee} tone="emerald" label="Income" value={formatRupees(row.income)} hint={`${row.trips || 0} trips + rent`} />
         <StatCard compact icon={Wallet} tone="rose" label="Cost" value={formatRupees(row.cost)} hint="Hire, rent and expenses" />
         <StatCard compact icon={TrendingUp} tone={(row.profit || 0) >= 0 ? 'blue' : 'rose'} label="Profit" value={formatRupees(row.profit)} hint={formatMonth(month)} />
-        <StatCard compact icon={Gauge} tone="slate" label="Odometer" value={`${formatNumber(vehicle.currentKm, 0)} km`} hint={`${formatNumber(row.km, 0)} km on trips this month`} />
+        <StatCard compact icon={Gauge} tone="slate" label={meterUnitOf(vehicle) === 'hrs' ? 'Hour Meter' : 'Odometer'} value={formatMeter(vehicle.currentKm, vehicle)} hint={`${formatNumber(row.km, 0)} km on trips this month`} />
       </section>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_1.4fr]">
@@ -236,14 +236,14 @@ export default function VehicleDetail() {
         {tab === 'meter' && ((readings || []).length === 0 ? <EmptyState title="No readings yet" /> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] text-left">
-              <thead><tr><th className={TH}>Date</th><th className={`${TH} text-right`}>Opening</th><th className={`${TH} text-right`}>Closing</th><th className={`${TH} text-right`}>KM Run</th><th className={TH}>Notes</th></tr></thead>
+              <thead><tr><th className={TH}>Date</th><th className={`${TH} text-right`}>Opening</th><th className={`${TH} text-right`}>Closing</th><th className={`${TH} text-right`}>{meterUnitOf(vehicle) === 'hrs' ? 'Hours Run' : 'KM Run'}</th><th className={TH}>Notes</th></tr></thead>
               <tbody>
                 {readings.map((reading) => (
                   <tr key={reading._id} className="tbl-row cursor-pointer" onClick={() => setPopup({ type: 'reading', record: reading })}>
                     <td className={TD}>{formatDate(reading.date)}</td>
-                    <td className={`${TD} text-right`}>{openingOf(reading) !== null ? `${formatNumber(openingOf(reading), 0)} km` : '—'}</td>
-                    <td className={`${TD} text-right font-semibold`}>{closingOf(reading) !== null ? `${formatNumber(closingOf(reading), 0)} km` : <span className="badge-orange">Pending</span>}</td>
-                    <td className={`${TD} text-right font-semibold text-primary-700`}>{runOf(reading) !== null ? `${formatNumber(runOf(reading), 0)} km` : '—'}</td>
+                    <td className={`${TD} text-right`}>{openingOf(reading) !== null ? formatMeter(openingOf(reading), vehicle) : '—'}</td>
+                    <td className={`${TD} text-right font-semibold`}>{closingOf(reading) !== null ? formatMeter(closingOf(reading), vehicle) : <span className="badge-orange">Pending</span>}</td>
+                    <td className={`${TD} text-right font-semibold text-primary-700`}>{runOf(reading) !== null ? formatMeter(runOf(reading), vehicle) : '—'}</td>
                     <td className={TD}>{reading.notes || '—'}</td>
                   </tr>
                 ))}

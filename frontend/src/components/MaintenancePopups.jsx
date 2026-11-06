@@ -3,7 +3,8 @@ import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
 import { MAINTENANCE_PRESETS } from '../utils/constants';
-import { formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
+import { idOf, toDayInput, todayInput } from '../utils/format';
+import { formatMeter, meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { FieldGrid } from './FormSection';
 import { VehicleSelect } from './Pickers';
@@ -28,6 +29,7 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const vehicle = vehicles.find((item) => item._id === form.vehicleId);
+  const unit = meterUnitOf(vehicle);
 
   const pickVehicle = (vehicleId) => {
     const picked = vehicles.find((item) => item._id === vehicleId);
@@ -54,9 +56,9 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
   };
 
   return (
-    <FormPopup title={task ? 'Edit Service Schedule' : 'Add Service Schedule'} subtitle="Get an alert when km or days run out" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
+    <FormPopup title={task ? 'Edit Service Schedule' : 'Add Service Schedule'} subtitle="Get an alert when km / hours or days run out" maxWidth="max-w-xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Service" tone="blue">
-        <Field label="Vehicle" required hint={vehicle ? `Meter now: ${formatNumber(vehicle.currentKm, 0)} km` : ''}>
+        <Field label="Vehicle" required hint={vehicle ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
           <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
         </Field>
         <Field label="Service Name" required htmlFor="mt-title">
@@ -80,19 +82,19 @@ export function ScheduleForm({ task = null, preset = {}, onClose, onSaved }) {
       <FormSection number={2} title="Due Every" tone="amber" hint="Fill one or both. Empty = not checked.">
         <div className="grid grid-cols-2 gap-3 md:gap-4">
           <Field label="Every">
-            <MoneyInput prefix="" suffix="km" value={form.intervalKm} onChange={(value) => set('intervalKm', value)} />
+            <MoneyInput prefix="" suffix={unit} value={form.intervalKm} onChange={(value) => set('intervalKm', value)} />
           </Field>
           <Field label="Or every">
             <MoneyInput prefix="" suffix="days" value={form.intervalDays} onChange={(value) => set('intervalDays', value)} />
           </Field>
           <Field label="Last done at">
-            <MoneyInput prefix="" suffix="km" value={form.lastDoneKm} onChange={(value) => set('lastDoneKm', value)} />
+            <MoneyInput prefix="" suffix={unit} value={form.lastDoneKm} onChange={(value) => set('lastDoneKm', value)} />
           </Field>
           <Field label="Last done on" htmlFor="mt-last">
             <input id="mt-last" type="date" className="input" value={form.lastDoneDate} onChange={(event) => set('lastDoneDate', event.target.value)} />
           </Field>
           <Field label="Warn before">
-            <MoneyInput prefix="" suffix="km" value={form.alertBeforeKm} onChange={(value) => set('alertBeforeKm', value)} />
+            <MoneyInput prefix="" suffix={unit} value={form.alertBeforeKm} onChange={(value) => set('alertBeforeKm', value)} />
           </Field>
           <Field label="Warn before">
             <MoneyInput prefix="" suffix="days" value={form.alertBeforeDays} onChange={(value) => set('alertBeforeDays', value)} />
@@ -133,8 +135,8 @@ export function DonePopup({ task, onClose, onSaved }) {
           <Field label="Date" required htmlFor="done-date">
             <input id="done-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
           </Field>
-          <Field label="Odometer" hint="The next due km counts from here">
-            <MoneyInput prefix="" suffix="km" value={form.km} onChange={(value) => set('km', value)} />
+          <Field label="Meter Reading" hint="The next due counts from here">
+            <MoneyInput prefix="" suffix={meterUnitOf(task.vehicleId)} value={form.km} onChange={(value) => set('km', value)} />
           </Field>
         </FieldGrid>
       </FormSection>

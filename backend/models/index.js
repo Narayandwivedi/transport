@@ -83,7 +83,9 @@ const vehicleSchema = new Schema(
     make: text,
     model: text,
     capacityTons: money,
-    // Latest odometer, kept up to date from meter readings and trips
+    // What the meter counts: km (odometer) or hrs (hour meter, e.g. JCB / machines)
+    meterUnit: { type: String, enum: ["km", "hrs"], default: "km" },
+    // Latest meter reading (km or hrs as meterUnit says), kept up to date from meter readings and trips
     currentKm: money,
     driverName: text,
     driverMobile: text,

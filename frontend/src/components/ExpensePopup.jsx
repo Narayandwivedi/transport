@@ -4,6 +4,7 @@ import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
 import useMasters from '../utils/useMasters';
 import { idOf, toDayInput, todayInput } from '../utils/format';
+import { meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { FieldGrid } from './FormSection';
 import { VehicleSelect } from './Pickers';
@@ -73,8 +74,8 @@ export default function ExpensePopup({ expense = null, preset = {}, onClose, onS
           <Field label="Vehicle">
             <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => set('vehicleId', value)} allowEmpty emptyLabel="No vehicle (general expense)" />
           </Field>
-          <Field label="Odometer" hint="Optional, updates the meter">
-            <MoneyInput prefix="" suffix="km" value={form.odometer} onChange={(value) => set('odometer', value)} />
+          <Field label="Meter Reading" hint="Optional, updates the meter">
+            <MoneyInput prefix="" suffix={meterUnitOf(vehicles.find((item) => item._id === form.vehicleId))} value={form.odometer} onChange={(value) => set('odometer', value)} />
           </Field>
         </FieldGrid>
       </FormSection>

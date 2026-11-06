@@ -4,12 +4,18 @@ import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
 import { BILLING_BASIS_OPTIONS, VEHICLE_CATEGORY_OPTIONS, getBasisUnit } from '../utils/constants';
 import { idOf, todayInput } from '../utils/format';
+import { meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink } from './FormSection';
 import PartyPopup from './PartyPopup';
 import RouteRateFields from './RouteRateFields';
 import { PartySelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
+
+const METER_UNITS = [
+  { value: 'km', label: 'KM', hint: 'Odometer counts kilometres' },
+  { value: 'hrs', label: 'Hours', hint: 'Hour meter (JCB, machines)' },
+];
 
 const OWNERSHIP = [
   { value: 'own', label: 'My Vehicle', hint: 'I own it. I can run trips or give it on monthly rent.' },
@@ -18,7 +24,7 @@ const OWNERSHIP = [
 
 const EMPTY = {
   vehicleNo: '', category: 'truck', ownership: 'own', ownerPartyId: '', hireBasis: '', hireRate: '', routeRates: [],
-  make: '', model: '', capacityTons: '', openingKm: '', driverName: '', driverMobile: '', status: 'active', notes: '',
+  meterUnit: 'km', make: '', model: '', capacityTons: '', openingKm: '', driverName: '', driverMobile: '', status: 'active', notes: '',
 };
 
 export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
@@ -28,6 +34,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const isHired = form.ownership === 'hired';
+  const unit = meterUnitOf(form);
 
   const handleSubmit = async () => {
     setSaving(true);
@@ -38,7 +45,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
       const saved = vehicle ? await apiClient.put(`/vehicles/${vehicle._id}`, payload) : await apiClient.post('/vehicles', payload);
       // The starting odometer is kept as the first meter reading
       if (!vehicle && Number(form.openingKm) > 0) {
-        await apiClient.post('/meter-readings', { vehicleId: saved._id, date: todayInput(), openingReading: form.openingKm, closingReading: form.openingKm, notes: 'Odometer when added' });
+        await apiClient.post('/meter-readings', { vehicleId: saved._id, date: todayInput(), openingReading: form.openingKm, closingReading: form.openingKm, notes: 'Meter when added' });
       }
       toast.success(vehicle ? 'Vehicle updated' : 'Vehicle added');
       onSaved?.(saved);
@@ -59,23 +66,25 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
               <input id="veh-no" className="input font-mono uppercase" value={form.vehicleNo} onChange={(event) => set('vehicleNo', event.target.value.toUpperCase())} placeholder="CG04AB1234" required autoFocus />
             </Field>
             <Field label="Type" htmlFor="veh-cat">
-              <select id="veh-cat" className="input" value={form.category} onChange={(event) => set('category', event.target.value)}>
+              <select id="veh-cat" className="input" value={form.category} onChange={(event) => {
+                const category = event.target.value;
+                setForm((prev) => ({ ...prev, category, ...(!vehicle && category === 'jcb' ? { meterUnit: 'hrs' } : {}) }));
+              }}>
                 {VEHICLE_CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {OWNERSHIP.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => set('ownership', option.value)}
-                className={`rounded-lg border-2 bg-white px-3 py-2 text-left transition ${form.ownership === option.value ? 'border-primary-600 ring-4 ring-primary-600/10' : 'border-slate-200 hover:border-slate-300'}`}
-              >
-                <span className="block text-sm font-semibold text-slate-800">{option.label}</span>
-                <span className="block text-[11px] text-slate-500">{option.hint}</span>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <Field label="Vehicle Is" required htmlFor="veh-own" hint={OWNERSHIP.find((option) => option.value === form.ownership)?.hint}>
+              <select id="veh-own" className="input" value={form.ownership} onChange={(event) => set('ownership', event.target.value)}>
+                {OWNERSHIP.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Meter Reading In" required htmlFor="veh-meter" hint={METER_UNITS.find((option) => option.value === unit)?.hint}>
+              <select id="veh-meter" className="input" value={unit} onChange={(event) => set('meterUnit', event.target.value)}>
+                {METER_UNITS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </Field>
           </div>
         </FormSection>
 
@@ -137,8 +146,8 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
                 </select>
               </Field>
             ) : (
-              <Field label="Current Odometer" hint="Saved as the first meter reading">
-                <MoneyInput prefix="" suffix="km" value={form.openingKm} onChange={(value) => set('openingKm', value)} />
+              <Field label={unit === 'hrs' ? 'Current Hour Meter' : 'Current Odometer'} hint="Saved as the first meter reading">
+                <MoneyInput prefix="" suffix={unit} value={form.openingKm} onChange={(value) => set('openingKm', value)} />
               </Field>
             )}
           </div>

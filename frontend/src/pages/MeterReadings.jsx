@@ -4,8 +4,8 @@ import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
 import useMasters from '../utils/useMasters';
-import { formatDate, formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
-import { closingOf, openingOf, runOf } from '../utils/meter';
+import { formatDate, idOf, toDayInput, todayInput } from '../utils/format';
+import { closingOf, formatMeter, meterUnitOf, openingOf, runOf } from '../utils/meter';
 import FormPopup from '../components/FormPopup';
 import FormSection, { FieldGrid } from '../components/FormSection';
 import StatCard from '../components/StatCard';
@@ -44,6 +44,8 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
   const previousClosing = previous ? closingOf(previous) : null;
   const suggestedOpening = previousClosing ?? (vehicle?.currentKm ? vehicle.currentKm : '');
   const opening = openingTouched ? form.openingReading : String(suggestedOpening);
+  const unit = meterUnitOf(vehicle);
+  const fmt = (value) => formatMeter(value, vehicle);
 
   const openingNum = opening === '' ? null : Number(opening);
   const closingNum = form.closingReading === '' ? null : Number(form.closingReading);
@@ -72,7 +74,7 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
   return (
     <FormPopup
       title={reading ? 'Edit Meter Reading' : 'Add Meter Reading'}
-      subtitle="Opening and closing of the odometer. Services due by km are checked against it."
+      subtitle="Opening and closing of the meter (km or hours). Services due are checked against it."
       onClose={onClose}
       onSubmit={handleSubmit}
       submitDisabled={saving}
@@ -96,12 +98,12 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
       </Field>
       </FieldGrid>
       </FormSection>
-      <FormSection number={2} title="Odometer" tone="sky">
+      <FormSection number={2} title={unit === 'hrs' ? 'Hour Meter' : 'Odometer'} tone="sky">
       <div className="grid grid-cols-2 gap-3 md:gap-4">
         <Field label="Opening" required>
           <MoneyInput
             prefix=""
-            suffix="km"
+            suffix={unit}
             value={opening}
             onChange={(value) => {
               setOpeningTouched(true);
@@ -112,7 +114,7 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
           />
         </Field>
         <Field label="Closing">
-          <MoneyInput prefix="" suffix="km" value={form.closingReading} onChange={(value) => set('closingReading', value)} placeholder="At day end" autoFocus={Boolean(preset.vehicleId) || Boolean(reading)} />
+          <MoneyInput prefix="" suffix={unit} value={form.closingReading} onChange={(value) => set('closingReading', value)} placeholder="At day end" autoFocus={Boolean(preset.vehicleId) || Boolean(reading)} />
         </Field>
       </div>
 
@@ -121,25 +123,25 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
           <p>
             Last entry {formatDate(previous.date)}:{' '}
             {previousClosing !== null
-              ? <>closed at <span className="font-semibold text-slate-800">{formatNumber(previousClosing, 0)} km</span></>
-              : <span className="font-semibold text-amber-700">no closing entered yet (opened at {formatNumber(openingOf(previous), 0)} km)</span>}
+              ? <>closed at <span className="font-semibold text-slate-800">{fmt(previousClosing)}</span></>
+              : <span className="font-semibold text-amber-700">no closing entered yet (opened at {fmt(openingOf(previous))})</span>}
           </p>
         ) : form.vehicleId ? (
-          <p>First reading for this vehicle{vehicle?.currentKm ? `. Odometer known so far: ${formatNumber(vehicle.currentKm, 0)} km` : ''}.</p>
+          <p>First reading for this vehicle{vehicle?.currentKm ? `. Meter known so far: ${fmt(vehicle.currentKm)}` : ''}.</p>
         ) : (
           <p>Pick the vehicle to see its last closing.</p>
         )}
         {gap !== 0 && (
           <p className={`font-medium ${gap > 0 ? 'text-amber-700' : 'text-rose-700'}`}>
             {gap > 0
-              ? `Opening is ${formatNumber(gap, 0)} km more than the last closing (km not entered in between)`
-              : `Opening is ${formatNumber(-gap, 0)} km less than the last closing. Check the number.`}
+              ? `Opening is ${fmt(gap)} more than the last closing (${unit} not entered in between)`
+              : `Opening is ${fmt(-gap)} less than the last closing. Check the number.`}
           </p>
         )}
         <p>
-          KM Run:{' '}
+          {unit === 'hrs' ? 'Hours Run' : 'KM Run'}:{' '}
           <span className={`font-bold ${run !== null && run < 0 ? 'text-rose-700' : 'text-slate-900'}`}>
-            {run === null ? 'after closing is entered' : `${formatNumber(run, 0)} km`}
+            {run === null ? 'after closing is entered' : fmt(run)}
           </span>
         </p>
       </div>
@@ -160,7 +162,12 @@ export default function MeterReadings() {
   const list = readings || [];
   const openEntries = list.filter((row) => closingOf(row) === null);
   const monthStart = todayInput().slice(0, 7);
-  const kmThisMonth = list.filter((row) => toDayInput(row.date).startsWith(monthStart)).reduce((total, row) => total + Math.max(0, runOf(row) || 0), 0);
+  const runThisMonth = (unit) => list
+    .filter((row) => toDayInput(row.date).startsWith(monthStart) && meterUnitOf(row.vehicleId) === unit)
+    .reduce((total, row) => total + Math.max(0, runOf(row) || 0), 0);
+  const kmThisMonth = runThisMonth('km');
+  const hrsThisMonth = runThisMonth('hrs');
+  const runText = [kmThisMonth || !hrsThisMonth ? formatMeter(kmThisMonth) : '', hrsThisMonth ? formatMeter(hrsThisMonth, { meterUnit: 'hrs' }) : ''].filter(Boolean).join(' · ');
 
   const refresh = () => {
     reload();
@@ -180,13 +187,13 @@ export default function MeterReadings() {
 
   return (
     <Page>
-      <PageHeader title="Meter Reading" subtitle="Opening and closing odometer of each vehicle, for km run and service alerts">
+      <PageHeader title="Meter Reading" subtitle="Opening and closing meter (km or hours) of each vehicle, for running and service alerts">
         <button type="button" className="btn-primary" onClick={() => setEditing({})}><Plus size={18} /> Add Reading</button>
       </PageHeader>
       <ErrorBox message={error} />
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
-        <StatCard compact icon={Gauge} tone="indigo" label="KM Run This Month" value={`${formatNumber(kmThisMonth, 0)} km`} hint={vehicleId ? 'This vehicle' : 'All vehicles'} />
+        <StatCard compact icon={Gauge} tone="indigo" label="Run This Month" value={runText} hint={vehicleId ? 'This vehicle' : 'All vehicles'} />
         <StatCard compact icon={Timer} tone={openEntries.length ? 'amber' : 'slate'} label="Closing Pending" value={openEntries.length} hint="Opened, not closed yet" />
       </section>
 
@@ -202,7 +209,7 @@ export default function MeterReadings() {
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white"><Gauge size={18} /></span>
             <span className="min-w-0">
               <span className="block truncate font-mono text-xs font-semibold text-slate-700">{vehicle.vehicleNo}</span>
-              <span className="block text-base font-bold text-slate-900">{formatNumber(vehicle.currentKm, 0)} km</span>
+              <span className="block text-base font-bold text-slate-900">{formatMeter(vehicle.currentKm, vehicle)}</span>
             </span>
           </button>
         ))}
@@ -221,7 +228,7 @@ export default function MeterReadings() {
                   <th className={TH}>Vehicle</th>
                   <th className={`${TH} text-right`}>Opening</th>
                   <th className={`${TH} text-right`}>Closing</th>
-                  <th className={`${TH} text-right`}>KM Run</th>
+                  <th className={`${TH} text-right`}>Run</th>
                   <th className={TH}>Notes</th>
                   <th className={TH} />
                 </tr>
@@ -235,13 +242,13 @@ export default function MeterReadings() {
                     <tr key={reading._id} className="tbl-row">
                       <td className={`${TD} whitespace-nowrap`}>{formatDate(reading.date)}</td>
                       <td className={`${TD} font-mono font-semibold`}>{reading.vehicleId?.vehicleNo}</td>
-                      <td className={`${TD} text-right`}>{opening !== null ? `${formatNumber(opening, 0)} km` : '—'}</td>
+                      <td className={`${TD} text-right`}>{opening !== null ? formatMeter(opening, reading.vehicleId) : '—'}</td>
                       <td className={`${TD} text-right font-semibold`}>
-                        {closing !== null ? `${formatNumber(closing, 0)} km` : (
+                        {closing !== null ? formatMeter(closing, reading.vehicleId) : (
                           <button type="button" className="badge-orange hover:brightness-95" onClick={() => setEditing(reading)}>Enter closing</button>
                         )}
                       </td>
-                      <td className={`${TD} text-right font-semibold text-primary-700`}>{run !== null ? `${formatNumber(run, 0)} km` : '—'}</td>
+                      <td className={`${TD} text-right font-semibold text-primary-700`}>{run !== null ? formatMeter(run, reading.vehicleId) : '—'}</td>
                       <td className={TD}>{reading.notes || '—'}</td>
                       <td className={TD}>
                         <div className="flex justify-end">

@@ -247,7 +247,7 @@ const documentStatus = async (userId) => {
 };
 
 const maintenanceStatus = async (userId) => {
-  const tasks = await Maintenance.find({ userId }).populate("vehicleId", "vehicleNo currentKm status").lean();
+  const tasks = await Maintenance.find({ userId }).populate("vehicleId", "vehicleNo currentKm meterUnit status").lean();
   const today = todayNum();
   return tasks.map((task) => {
     const currentKm = toNumber(task.vehicleId?.currentKm);

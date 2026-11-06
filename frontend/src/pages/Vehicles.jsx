@@ -4,8 +4,9 @@ import { CalendarClock, Eye, Gauge, Handshake, Pencil, Plus, Trash2, Truck } fro
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
-import { currentMonthInput, formatNumber, formatRupees, idOf } from '../utils/format';
+import { currentMonthInput, formatRupees, idOf } from '../utils/format';
 import { getBasisLabel, getCategoryLabel } from '../utils/constants';
+import { formatMeter } from '../utils/meter';
 import StatCard from '../components/StatCard';
 import Segmented from '../components/Segmented';
 import VehiclePopup from '../components/VehiclePopup';
@@ -82,7 +83,7 @@ export default function Vehicles() {
                       <p className="truncate font-mono text-sm font-semibold text-slate-800">{vehicle.vehicleNo}</p>
                       <span className={vehicle.ownership === 'own' ? 'badge-blue' : 'badge-orange'}>{vehicle.ownership === 'own' ? 'Mine' : 'Hired'}</span>
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-slate-500">{getCategoryLabel(vehicle.category)} · {formatNumber(vehicle.currentKm, 0)} km</p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{getCategoryLabel(vehicle.category)} · {formatMeter(vehicle.currentKm, vehicle)}</p>
                     {hireNote(vehicle).map((note) => <p key={note} className="truncate text-[11px] font-medium text-amber-700">{note}</p>)}
                   </div>
                   <span className={`shrink-0 text-sm font-bold ${(profitOf.get(vehicle._id)?.profit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(profitOf.get(vehicle._id)?.profit)}</span>
@@ -119,7 +120,7 @@ export default function Vehicles() {
                           <p>{vehicle.driverName || '—'}</p>
                           {vehicle.driverMobile && <p className="text-xs text-slate-500">{vehicle.driverMobile}</p>}
                         </td>
-                        <td className={`${TD} whitespace-nowrap text-right`}>{formatNumber(vehicle.currentKm, 0)} km</td>
+                        <td className={`${TD} whitespace-nowrap text-right`}>{formatMeter(vehicle.currentKm, vehicle)}</td>
                         <td className={`${TD} text-right font-semibold ${(row?.profit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(row?.profit)}</td>
                         <td className={TD}>
                           <span className={vehicle.status === 'active' ? 'badge-green' : vehicle.status === 'sold' ? 'badge-gray' : 'badge-orange'}>

@@ -4,6 +4,7 @@ import { BellOff, FileWarning, IdCard, PackageX, Wrench } from 'lucide-react';
 import { useAlerts } from '../context/AlertsContext';
 import { daysLeftText, formatDate, formatNumber, idOf } from '../utils/format';
 import { STATUS_BADGES, getDocTypeLabel } from '../utils/constants';
+import { formatMeter } from '../utils/meter';
 import StatCard from '../components/StatCard';
 import DocumentPopup from '../components/DocumentPopup';
 import { DonePopup } from '../components/MaintenancePopups';
@@ -80,7 +81,7 @@ export default function Alerts() {
                 tone={task.status === 'overdue' ? 'red' : 'amber'}
                 title={`${task.vehicleId?.vehicleNo} · ${task.title}`}
                 detail={[
-                  task.dueKm !== null ? `Due at ${formatNumber(task.dueKm, 0)} km (meter ${formatNumber(task.currentKm, 0)} km)` : '',
+                  task.dueKm !== null ? `Due at ${formatMeter(task.dueKm, task.vehicleId)} (meter ${formatMeter(task.currentKm, task.vehicleId)})` : '',
                   task.dueDate ? `Due on ${formatDate(task.dueDate)}` : '',
                 ].filter(Boolean).join(' · ')}
                 badge={<span className={STATUS_BADGES[task.status].className}>{STATUS_BADGES[task.status].label}</span>}

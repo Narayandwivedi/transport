@@ -1,11 +1,12 @@
 import { CheckCircle2, Pencil, Trash2 } from 'lucide-react';
-import { formatDate, formatNumber } from '../utils/format';
+import { formatDate } from '../utils/format';
+import { formatMeter } from '../utils/meter';
 import { STATUS_BADGES } from '../utils/constants';
 import { RowAction, TD, TH } from './ui';
 
 const kmText = (task) => {
   if (task.kmLeft === null) return null;
-  return task.kmLeft <= 0 ? `${formatNumber(-task.kmLeft, 0)} km over` : `${formatNumber(task.kmLeft, 0)} km left`;
+  return task.kmLeft <= 0 ? `${formatMeter(-task.kmLeft, task.vehicleId)} over` : `${formatMeter(task.kmLeft, task.vehicleId)} left`;
 };
 
 const dayText = (task) => {
@@ -36,19 +37,19 @@ export default function MaintenanceTable({ tasks, showVehicle = true, onDone, on
               {showVehicle && (
                 <td className={TD}>
                   <p className="font-mono font-semibold">{task.vehicleId?.vehicleNo}</p>
-                  <p className="text-xs text-slate-500">Meter {formatNumber(task.currentKm, 0)} km</p>
+                  <p className="text-xs text-slate-500">Meter {formatMeter(task.currentKm, task.vehicleId)}</p>
                 </td>
               )}
               <td className={`${TD} font-semibold text-slate-800`}>{task.title}</td>
               <td className={`${TD} text-xs`}>
-                {[task.intervalKm ? `${formatNumber(task.intervalKm, 0)} km` : '', task.intervalDays ? `${task.intervalDays} days` : ''].filter(Boolean).join(' / ')}
+                {[task.intervalKm ? formatMeter(task.intervalKm, task.vehicleId) : '', task.intervalDays ? `${task.intervalDays} days` : ''].filter(Boolean).join(' / ')}
               </td>
               <td className={`${TD} text-xs`}>
                 <p>{formatDate(task.lastDoneDate)}</p>
-                {task.lastDoneKm > 0 && <p className="text-slate-500">{formatNumber(task.lastDoneKm, 0)} km</p>}
+                {task.lastDoneKm > 0 && <p className="text-slate-500">{formatMeter(task.lastDoneKm, task.vehicleId)}</p>}
               </td>
               <td className={`${TD} text-xs`}>
-                {task.dueKm !== null && <p>{formatNumber(task.dueKm, 0)} km · <span className={task.kmLeft <= 0 ? 'font-semibold text-rose-700' : 'text-slate-500'}>{kmText(task)}</span></p>}
+                {task.dueKm !== null && <p>{formatMeter(task.dueKm, task.vehicleId)} · <span className={task.kmLeft <= 0 ? 'font-semibold text-rose-700' : 'text-slate-500'}>{kmText(task)}</span></p>}
                 {task.dueDate && <p>{formatDate(task.dueDate)} · <span className={task.daysLeft < 0 ? 'font-semibold text-rose-700' : 'text-slate-500'}>{dayText(task)}</span></p>}
               </td>
               <td className={TD}><span className={STATUS_BADGES[task.status]?.className}>{STATUS_BADGES[task.status]?.label}</span></td>
