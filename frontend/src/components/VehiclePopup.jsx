@@ -37,10 +37,6 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
   const unit = meterUnitOf(form);
 
   const handleSubmit = async () => {
-    if (!vehicle && String(form.openingKm).trim() === '') {
-      toast.error(`Enter the opening ${unit === 'hrs' ? 'hour meter' : 'odometer'} reading`);
-      return;
-    }
     setSaving(true);
     const payload = { ...form };
     delete payload.openingKm;
@@ -91,8 +87,8 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
             </Field>
             {/* Where the meter stands today; saved as the vehicle's first meter reading */}
             {!vehicle && (
-              <Field label={unit === 'hrs' ? 'Opening Hour Meter' : 'Opening Odometer'} required hint="Meter reading today, saved as the first reading">
-                <MoneyInput prefix="" suffix={unit} value={form.openingKm} onChange={(value) => set('openingKm', value)} placeholder={unit === 'hrs' ? 'Hours on the meter' : 'Km on the odometer'} required />
+              <Field label={unit === 'hrs' ? 'Opening Hour Meter' : 'Opening Odometer'} hint="Optional. Meter today, saved as the first reading">
+                <MoneyInput prefix="" suffix={unit} value={form.openingKm} onChange={(value) => set('openingKm', value)} placeholder="Optional" />
               </Field>
             )}
           </div>
@@ -100,10 +96,11 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
 
         {isHired && (
           <FormSection number={2} title="Hired From" tone="amber" hint="For monthly rent, leave the rate empty and add it in Monthly Hire.">
-            <Field label="Vehicle Owner" required action={<AddLink onClick={() => setAddingParty(true)}>New Owner</AddLink>}>
-              <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['supplier']} required />
-            </Field>
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
+            {/* Owner, how they are paid and the rate, side by side */}
+            <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 ${form.hireBasis ? 'md:grid-cols-3' : ''}`}>
+              <Field label="Vehicle Owner" required action={<AddLink onClick={() => setAddingParty(true)}>New Owner</AddLink>}>
+                <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['supplier']} required />
+              </Field>
               <Field label="Pay Owner">
                 <select className="input" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)}>
                   <option value="">Monthly / no fixed rate</option>
