@@ -228,7 +228,7 @@ export default function MeterReadings() {
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <StatCard compact icon={Gauge} tone="indigo" label="Run This Month" value={runText} hint={vehicleId ? 'This vehicle' : 'All vehicles'} />
-        <StatCard compact icon={Fuel} tone="amber" label="At Diesel Fill" value={dieselRows.length} hint="Readings noted at the pump" />
+        <StatCard compact icon={Fuel} tone="amber" label="At Diesel Fill" value={dieselRows.length} hint="Readings taken when diesel filled" />
         <StatCard compact icon={Timer} tone={openEntries.length ? 'amber' : 'slate'} label="Closing Pending" value={openEntries.length} hint="Opened, not closed yet" />
       </section>
 
@@ -296,7 +296,7 @@ export default function MeterReadings() {
                           <p className="mt-0.5 font-mono text-[11px] text-slate-500">{reading.entryNo}</p>
                         </td>
                         <td className={`${TD} text-right font-semibold`} colSpan={2}>
-                          <span className="mr-1 text-xs font-normal text-slate-500">At pump</span>{formatMeter(reading.meterReading, reading.vehicleId)}
+                          {formatMeter(reading.meterReading, reading.vehicleId)}
                         </td>
                         <td className={`${TD} text-right font-semibold text-primary-700`}>
                           {reading.sinceLast !== null ? formatMeter(reading.sinceLast, reading.vehicleId) : '—'}
