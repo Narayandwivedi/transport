@@ -45,6 +45,9 @@ export default function VehicleDetail() {
 
   const { data: vehicle, error, reload: reloadVehicle } = useFetch(`/vehicles/${id}`);
   const { data: profit, reload: reloadProfit } = useFetch('/reports/profit', { month });
+  // This vehicle's driver, as given on the Drivers page
+  const { data: drivers } = useFetch('/payroll/employees', { role: 'driver' }, []);
+  const driver = (drivers || []).find((row) => row.isActive && String(row.vehicleId?._id || row.vehicleId || '') === id);
   const { data: trips, reload: reloadTrips } = useFetch('/trips', { vehicleId: id, ...range }, []);
   const { data: expenses, reload: reloadExpenses } = useFetch('/expenses', { vehicleId: id, ...range }, []);
   const { data: contracts } = useFetch('/contracts', { vehicleId: id, month }, []);
@@ -94,8 +97,7 @@ export default function VehicleDetail() {
         subtitle={[
           getCategoryLabel(vehicle.category),
           vehicle.ownership === 'own' ? 'My vehicle' : `Hired from ${vehicle.ownerPartyId?.name || '—'}${vehicle.hireBasis ? ` · ${getBasisLabel(vehicle.hireBasis)} @ ${formatRupees(vehicle.hireRate)}` : ''}`,
-          [vehicle.make, vehicle.model].filter(Boolean).join(' '),
-          vehicle.driverName && `Driver ${vehicle.driverName}${vehicle.driverMobile ? ` (${vehicle.driverMobile})` : ''}`,
+          driver && `Driver ${driver.name}${driver.mobile ? ` (${driver.mobile})` : ''}`,
         ].filter(Boolean).join(' · ')}
       >
         <MonthFilter value={month} onChange={setMonth} />

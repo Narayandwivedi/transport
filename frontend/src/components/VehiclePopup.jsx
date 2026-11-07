@@ -24,7 +24,7 @@ const OWNERSHIP = [
 
 const EMPTY = {
   vehicleNo: '', category: 'truck', ownership: 'own', ownerPartyId: '', hireBasis: '', hireRate: '', routeRates: [],
-  meterUnit: 'km', make: '', model: '', capacityTons: '', openingKm: '', driverName: '', driverMobile: '', status: 'active', notes: '',
+  meterUnit: 'km', capacityTons: '', openingKm: '', status: 'active', notes: '',
 };
 
 export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
@@ -132,23 +132,11 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
 
         <FormSection number={isHired ? 4 : 3} title="Details" tone="slate">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-            <Field label="Make" htmlFor="veh-make">
-              <input id="veh-make" className="input" value={form.make} onChange={(event) => set('make', event.target.value)} placeholder="Tata / Ashok Leyland" />
-            </Field>
-            <Field label="Model" htmlFor="veh-model">
-              <input id="veh-model" className="input" value={form.model} onChange={(event) => set('model', event.target.value)} />
-            </Field>
             <Field label="Capacity">
               <MoneyInput prefix="" suffix="ton" value={form.capacityTons} onChange={(value) => set('capacityTons', value)} />
             </Field>
             <Field label="Expected Mileage" hint={unit === 'hrs' ? 'Diesel per hour it should use. Flagged when it uses over 10% more.' : 'Km per litre it should give. Flagged when over 10% lower.'}>
               <MoneyInput prefix="" suffix={unit === 'hrs' ? 'ltr/hr' : 'km/l'} value={form.expectedMileage || ''} onChange={(value) => set('expectedMileage', value)} placeholder="Optional" />
-            </Field>
-            <Field label="Driver Name" htmlFor="veh-driver">
-              <input id="veh-driver" className="input" value={form.driverName} onChange={(event) => set('driverName', event.target.value)} />
-            </Field>
-            <Field label="Driver Mobile" htmlFor="veh-driver-mobile">
-              <input id="veh-driver-mobile" className="input" value={form.driverMobile} onChange={(event) => set('driverMobile', event.target.value)} inputMode="tel" />
             </Field>
             {vehicle && (
               <Field label="Status">

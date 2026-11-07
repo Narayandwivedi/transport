@@ -20,6 +20,9 @@ export default function Vehicles() {
   const { data: vehicles, loading, error, reload } = useFetch('/vehicles', { search, ownership }, []);
   const { data: contracts } = useFetch('/contracts', {}, []);
   const { data: profit } = useFetch('/reports/profit', { month: currentMonthInput() });
+  // Drivers come from the Drivers page, where each is given a vehicle
+  const { data: drivers } = useFetch('/payroll/employees', { role: 'driver' }, []);
+  const driverOf = (vehicleId) => (drivers || []).find((driver) => driver.isActive && idOf(driver.vehicleId) === vehicleId);
 
   const list = vehicles || [];
   const running = (contracts || []).filter((contract) => contract.status === 'running');
@@ -117,8 +120,8 @@ export default function Vehicles() {
                           {hireNote(vehicle).map((note) => <p key={note} className="text-xs font-medium text-amber-700">{note}</p>)}
                         </td>
                         <td className={TD}>
-                          <p>{vehicle.driverName || '—'}</p>
-                          {vehicle.driverMobile && <p className="text-xs text-slate-500">{vehicle.driverMobile}</p>}
+                          <p>{driverOf(vehicle._id)?.name || '—'}</p>
+                          {driverOf(vehicle._id)?.mobile && <p className="text-xs text-slate-500">{driverOf(vehicle._id).mobile}</p>}
                         </td>
                         <td className={`${TD} whitespace-nowrap text-right`}>{formatMeter(vehicle.currentKm, vehicle)}</td>
                         <td className={`${TD} text-right font-semibold ${(row?.profit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(row?.profit)}</td>
