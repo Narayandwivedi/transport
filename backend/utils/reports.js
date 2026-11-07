@@ -155,6 +155,15 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     debit: toNumber(trip.amount),
     credit: 0,
   }));
+  // Money the party paid on the trip itself
+  billedTrips.filter((trip) => toNumber(trip.receivedAmount) > 0).forEach((trip) => rows.push({
+    date: trip.date,
+    kind: "Received",
+    ref: trip.tripNo,
+    details: `Paid on trip (${String(trip.receivedMode || "cash").toUpperCase()})${trip.paymentType === "partial" ? " · part payment" : ""}`,
+    debit: 0,
+    credit: toNumber(trip.receivedAmount),
+  }));
   hireTrips.forEach((trip) => rows.push({
     date: trip.date,
     kind: "Vehicle Hire",

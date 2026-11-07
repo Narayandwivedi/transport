@@ -25,7 +25,7 @@ const crudOptions = {
   sort: { date: -1, createdAt: -1 },
   populate: "vehicleId partyId hirePartyId driverId",
   dateField: "date",
-  filters: ["vehicleId", "partyId", "status", "hirePartyId", "driverId"],
+  filters: ["vehicleId", "partyId", "status", "hirePartyId", "driverId", "paymentType"],
   searchFields: ["tripNo", "from", "to", "material", "notes"],
   number: { field: "tripNo", key: "trip", prefix: "TR" },
   prepare: async (req, data) => {
@@ -58,6 +58,12 @@ const crudOptions = {
       Object.assign(data, { materialBy: "party", materialAmount: 0 });
     }
     data.amount = round2(data.freightAmount + data.materialAmount);
+    // Money the party paid on the trip: nothing = credit, all = full, some = partial
+    const received = round2(Math.max(0, toNumber(data.receivedAmount)));
+    if (received > data.amount) throw refuse(`Received cannot be more than the bill (₹${data.amount}). Enter any extra in Money Received.`);
+    data.receivedAmount = received;
+    data.paymentType = received <= 0 ? "credit" : received >= data.amount ? "full" : "partial";
+    if (!["cash", "bank", "upi", "cheque"].includes(data.receivedMode)) data.receivedMode = "cash";
     // Only a hired vehicle paid per trip / km / ton costs hire on the trip
     if (vehicle.ownership === "hired" && data.hireBasis) {
       data.hirePartyId = data.hirePartyId || vehicle.ownerPartyId;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Package, PackageCheck, Trash2 } from 'lucide-react';
+import { ArrowRight, CircleCheck, Clock, Coins, Package, PackageCheck, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -27,6 +27,19 @@ const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Distance', per_ton: 'Weigh
 const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded', per_ton_km: 'Tons loaded', per_cft: 'How many cubic feet' };
 const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
+// How much the party paid on the trip itself; the rest stays owed in its ledger
+const PAYMENT_TYPES = [
+  { value: 'credit', label: 'Credit (Pay Later)', icon: Clock },
+  { value: 'partial', label: 'Partial Payment', icon: Coins },
+  { value: 'full', label: 'Full Payment', icon: CircleCheck },
+];
+const RECEIVED_MODES = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'cheque', label: 'Cheque' },
+];
+
 // The kinds of spend on the way, for now
 const EXPENSE_TYPES = ['Tyre Puncture', 'Toll', 'Other'];
 const EMPTY_EXPENSE = { category: '', amount: '', notes: '' };
@@ -35,6 +48,7 @@ const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
   driverId: '', hireBasis: '', hireQuantity: '', hireRate: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
+  paymentType: 'credit', receivedAmount: '', receivedMode: 'cash',
 };
 
 // Routes match without caring about capitals or extra spaces
@@ -82,6 +96,9 @@ const fromTrip = (trip) => ({
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverId: idOf(trip.driverId),
+  paymentType: trip.paymentType || 'credit',
+  receivedAmount: trip.paymentType === 'partial' ? String(trip.receivedAmount || '') : '',
+  receivedMode: trip.receivedMode || 'cash',
   // Always at least one expense row to fill
   expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '' })) : [EMPTY_EXPENSE],
 });
@@ -232,6 +249,10 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const removeExpense = (index) => setForm((prev) => ({ ...prev, expenses: prev.expenses.filter((_, i) => i !== index) }));
   // Profit on the transport: what the party pays for it, less the owner's pay and the trip's expenses
   const margin = amount - hireAmount - expenseTotal;
+  // Paid on the trip: full follows the bill as it changes; partial is what was typed
+  const paymentType = form.paymentType || 'credit';
+  const received = paymentType === 'full' ? total : paymentType === 'partial' ? toNumber(form.receivedAmount) : 0;
+  const balanceDue = Math.max(0, total - received);
 
   const handleSubmit = async () => {
     if (!String(form.from || '').trim() || !String(form.to || '').trim()) {
@@ -246,11 +267,19 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
       toast.error('Enter which material you supplied');
       return;
     }
+    if (paymentType === 'partial' && !(received > 0)) {
+      toast.error('Enter how much the party paid, or pick Credit');
+      return;
+    }
+    if (received > total) {
+      toast.error('Received cannot be more than the bill. Enter any extra in Money Received.');
+      return;
+    }
     setSaving(true);
     try {
       // distanceKm carries the km of a per ton per km charge, the party's or the owner's
       const distanceKm = basis === 'per_ton_km' || (isHired && hireBasis === 'per_ton_km') ? hireKm : 0;
-      const payload = { ...form, hireQuantity, distanceKm };
+      const payload = { ...form, hireQuantity, distanceKm, receivedAmount: received };
       if (trip) await apiClient.put(`/trips/${trip._id}`, payload);
       else await apiClient.post('/trips', payload);
       toast.success(trip ? 'Trip updated' : 'Trip added');
@@ -291,6 +320,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <span className="text-xs font-medium text-slate-500">Bill</span>
             <span className="text-base font-bold text-slate-900">{formatRupees(total)}</span>
             {materialAmount > 0 && <span className="text-xs text-slate-500">incl. material {formatRupees(materialAmount)}</span>}
+            {received > 0 && <span className="text-xs font-semibold text-emerald-700">Received {formatRupees(received)}</span>}
+            {balanceDue > 0 && total > 0 && <span className="text-xs font-semibold text-amber-700">Due {formatRupees(balanceDue)}</span>}
             {(hireAmount > 0 || expenseTotal > 0) && (
               <span className={`text-xs font-semibold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>Profit {formatRupees(margin)}</span>
             )}
@@ -435,10 +466,57 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           )}
         </FormSection>
 
-        {/* 4. What the owner of a hired vehicle gets */}
+        {/* 4. How much the party paid on this trip */}
+        <FormSection number={4} title="Payment from Party" tone="indigo" hint="What is not paid now stays due in the party's ledger.">
+          <div className="grid grid-cols-1 gap-1 rounded-xl bg-white/70 p-1 ring-1 ring-indigo-200 sm:grid-cols-3">
+            {PAYMENT_TYPES.map(({ value, label, icon: Icon }) => {
+              const active = paymentType === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => set('paymentType', value)}
+                  aria-pressed={active}
+                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+                >
+                  <Icon size={16} /> {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {paymentType !== 'credit' && (
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
+              <Field label={paymentType === 'full' ? 'Amount Received' : 'Amount Received Now'} required>
+                {paymentType === 'full' ? (
+                  <MoneyInput value={total ? String(total) : ''} onChange={() => {}} disabled />
+                ) : (
+                  <MoneyInput value={form.receivedAmount} onChange={(value) => set('receivedAmount', value)} placeholder="How much paid" required />
+                )}
+              </Field>
+              <Field label="Received In" htmlFor="trip-received-mode">
+                <select id="trip-received-mode" className="input" value={form.receivedMode} onChange={(event) => set('receivedMode', event.target.value)}>
+                  {RECEIVED_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 ring-1 ${balanceDue > 0 ? 'bg-amber-50 ring-amber-200' : 'bg-emerald-50 ring-emerald-200'}`}>
+            <span className={`text-sm ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+              Bill {formatRupees(total)} · Received {formatRupees(received)}
+              {received > total && <span className="ml-2 font-semibold text-rose-700">more than the bill</span>}
+            </span>
+            <span className={`text-lg font-bold ${balanceDue > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {balanceDue > 0 ? `Due ${formatRupees(balanceDue)}` : total > 0 ? 'Fully paid' : formatRupees(0)}
+            </span>
+          </div>
+        </FormSection>
+
+        {/* 5. What the owner of a hired vehicle gets */}
         {isHired && (
           <FormSection
-            number={4}
+            number={5}
             tone="amber"
             title={`Owner Payment · ${vehicle?.ownerPartyId?.name || 'Hired vehicle'}`}
             action={(
@@ -478,7 +556,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
         {/* 4 or 5. Spends on the way: toll, puncture… each saved as an expense of the vehicle */}
         <FormSection
-          number={isHired ? 5 : 4}
+          number={isHired ? 6 : 5}
           title="Trip Expenses"
           tone="rose"
           action={<AddLink onClick={() => addExpense()}>Add Expense</AddLink>}
@@ -523,8 +601,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           )}
         </FormSection>
 
-        {/* 5 or 6. Other details */}
-        <FormSection number={isHired ? 6 : 5} title="Other Details" tone="slate">
+        {/* 6 or 7. Other details */}
+        <FormSection number={isHired ? 7 : 6} title="Other Details" tone="slate">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
             <Field label="Status">
               <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>

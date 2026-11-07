@@ -22,6 +22,11 @@ const tripSchema = new Schema(
     // freightAmount: the transport charge; amount: what the party is billed (transport + any material I supplied)
     freightAmount: money,
     amount: money,
+    // Paid by the party on the trip itself: all of it (full), some (partial) or nothing (credit).
+    // What is not paid stays owed in the party's ledger.
+    receivedAmount: money,
+    receivedMode: { type: String, enum: ["cash", "bank", "upi", "cheque"], default: "cash" },
+    paymentType: { type: String, enum: ["credit", "partial", "full"], default: "credit" },
     startKm: money,
     endKm: money,
     // Hired vehicle paid per trip / km / ton: what I owe its owner for this trip
