@@ -12,7 +12,7 @@ import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
 const DIRECTIONS = {
-  hire_in: { title: 'Hire a Vehicle Monthly', party: 'Vehicle Owner', prefer: ['transporter'], hint: 'I take this vehicle and pay its owner every month' },
+  hire_in: { title: 'Hire a Vehicle Monthly', party: 'Vehicle Owner', prefer: ['supplier'], hint: 'I take this vehicle and pay its owner every month' },
   give_out: { title: 'Give a Vehicle Monthly', party: 'Given To (Party)', prefer: ['customer'], hint: 'I give my vehicle (or one I hired) and charge the party every month' },
 };
 
@@ -122,7 +122,7 @@ export default function ContractPopup({ contract = null, direction = 'hire_in', 
 
       {adding === 'party' && (
         <PartyPopup
-          defaultType={form.direction === 'hire_in' ? 'transporter' : 'customer'}
+          defaultType={form.direction === 'hire_in' ? 'supplier' : 'customer'}
           onClose={() => setAdding('')}
           onSaved={async (party) => {
             await reload();

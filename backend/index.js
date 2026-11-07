@@ -56,6 +56,8 @@ const start = async () => {
   }
   await mongoose.connect(uri);
   console.log("MongoDB connected");
+  // Parties are only customers or suppliers now: older vehicle owners, pumps and others become suppliers
+  await mongoose.connection.collection("parties").updateMany({ type: { $nin: ["customer", "supplier"] } }, { $set: { type: "supplier" } });
   app.listen(PORT, () => console.log(`TransportBook backend on http://localhost:${PORT}`));
 };
 

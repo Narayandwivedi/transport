@@ -4,9 +4,8 @@ const partySchema = new Schema(
   {
     ...owner,
     name: { type: String, trim: true, required: true },
-    // customer: I carry goods for them. transporter: I hire vehicles from them. supplier: tyres, diesel, parts.
-    // pump: petrol pump where vehicles fill diesel, often on credit settled monthly
-    type: { type: String, enum: ["customer", "transporter", "supplier", "pump", "other"], default: "customer" },
+    // customer: I bill them (trips, rent). supplier: I pay them (vehicle owners I hire from, petrol pumps, tyres, parts)
+    type: { type: String, enum: ["customer", "supplier"], default: "customer" },
     mobile: text,
     address: text,
     gstin: { type: String, trim: true, uppercase: true, default: "" },

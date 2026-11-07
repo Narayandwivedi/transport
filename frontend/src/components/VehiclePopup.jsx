@@ -101,7 +101,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
         {isHired && (
           <FormSection number={2} title="Hired From" tone="amber" hint="For monthly rent, leave the rate empty and add it in Monthly Hire.">
             <Field label="Vehicle Owner" required action={<AddLink onClick={() => setAddingParty(true)}>New Owner</AddLink>}>
-              <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['transporter']} required />
+              <PartySelect parties={parties} value={form.ownerPartyId} onChange={(value) => set('ownerPartyId', value)} prefer={['supplier']} required />
             </Field>
             <div className="grid grid-cols-2 gap-3 md:gap-4">
               <Field label="Pay Owner">
@@ -168,7 +168,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
 
       {addingParty && (
         <PartyPopup
-          defaultType="transporter"
+          defaultType="supplier"
           onClose={() => setAddingParty(false)}
           onSaved={async (party) => {
             await reloadParties();

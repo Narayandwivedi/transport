@@ -50,11 +50,8 @@ export const VEHICLE_CATEGORY_OPTIONS = [
 export const getCategoryLabel = (value) => VEHICLE_CATEGORY_OPTIONS.find((option) => option.value === value)?.label || 'Vehicle';
 
 export const PARTY_TYPE_OPTIONS = [
-  { value: 'customer', label: 'Customer', hint: 'I carry goods / give vehicle to them' },
-  { value: 'transporter', label: 'Vehicle Owner', hint: 'I hire vehicles from them' },
-  { value: 'supplier', label: 'Supplier', hint: 'Tyres, diesel, spare parts' },
-  { value: 'pump', label: 'Petrol Pump', hint: 'Vehicles fill diesel here' },
-  { value: 'other', label: 'Other', hint: '' },
+  { value: 'customer', label: 'Customer', hint: 'I bill them: trips, vehicle given on rent' },
+  { value: 'supplier', label: 'Supplier', hint: 'I pay them: vehicle owner, petrol pump, tyres, parts' },
 ];
 
 export const getPartyTypeLabel = (value) => PARTY_TYPE_OPTIONS.find((option) => option.value === value)?.label || 'Party';

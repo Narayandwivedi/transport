@@ -136,7 +136,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
             <Field label="Petrol Pump" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['pump']} allowEmpty emptyLabel="Not saved (paid on the spot)" />
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Not saved (paid on the spot)" />
             </Field>
             <Field label="Pump Bill / Slip No." htmlFor="dsl-bill">
               <input id="dsl-bill" className="input" value={form.billNo} onChange={(event) => set('billNo', event.target.value)} placeholder="Optional" />
@@ -188,7 +188,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
 
       {addingPump && (
         <PartyPopup
-          defaultType="pump"
+          defaultType="supplier"
           onClose={() => setAddingPump(false)}
           onSaved={async (party) => {
             await reloadParties();

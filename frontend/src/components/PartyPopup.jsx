@@ -47,7 +47,7 @@ export default function PartyPopup({ party = null, defaultType = 'customer', onC
   };
 
   return (
-    <FormPopup title={party ? 'Edit Party' : 'Add Party'} subtitle="Customer, vehicle owner or supplier" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
+    <FormPopup title={party ? 'Edit Party' : 'Add Party'} subtitle="Customer or supplier" maxWidth="max-w-2xl" onClose={onClose} onSubmit={handleSubmit} submitDisabled={saving}>
       <FormSection number={1} title="Party" tone="blue">
         <Field label="Party Name" required htmlFor="party-name">
           <input id="party-name" className="input" value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="e.g. Shree Cement Ltd." required autoFocus />

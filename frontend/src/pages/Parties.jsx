@@ -11,7 +11,7 @@ import Segmented from '../components/Segmented';
 import PartyPopup from '../components/PartyPopup';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
 
-const TYPE_BADGE = { customer: 'badge-blue', transporter: 'badge-orange', supplier: 'badge-green', other: 'badge-gray' };
+const TYPE_BADGE = { customer: 'badge-blue', supplier: 'badge-green' };
 
 export default function Parties() {
   const navigate = useNavigate();
@@ -52,14 +52,14 @@ export default function Parties() {
 
   return (
     <Page>
-      <PageHeader title="Parties" subtitle="Customers, vehicle owners and suppliers">
+      <PageHeader title="Parties" subtitle="Customers I bill and suppliers I pay">
         <button type="button" className="btn-primary" onClick={() => setEditing({})}><Plus size={18} /> Add Party</button>
       </PageHeader>
       <ErrorBox message={error} />
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
-        <StatCard compact icon={Users} tone="indigo" label="Total Parties" value={(parties || []).length} />
-        <StatCard compact icon={Truck} tone="amber" label="Vehicle Owners" value={(parties || []).filter((party) => party.type === 'transporter').length} />
+        <StatCard compact icon={Users} tone="indigo" label="Customers" value={(parties || []).filter((party) => party.type === 'customer').length} hint={`${(parties || []).length} parties in all`} />
+        <StatCard compact icon={Truck} tone="amber" label="Suppliers" value={(parties || []).filter((party) => party.type === 'supplier').length} hint="Vehicle owners, pumps, shops" />
         <StatCard compact icon={ArrowDownLeft} tone="emerald" label="To Receive" value={formatRupees(receivable)} hint="Parties owe me" />
         <StatCard compact icon={ArrowUpRight} tone="rose" label="To Pay" value={formatRupees(payable)} hint="I owe parties" />
       </section>
