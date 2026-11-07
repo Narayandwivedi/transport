@@ -65,7 +65,7 @@ export default function Diesel() {
               <thead>
                 <tr>
                   <th className={TH}>Date</th>
-                  <th className={TH}>Vehicle</th>
+                  <th className={TH}>Vehicle / Trip</th>
                   <th className={TH}>Pump</th>
                   <th className={`${TH} text-right`}>Litres × Rate</th>
                   <th className={`${TH} text-right`}>Amount</th>
@@ -81,7 +81,10 @@ export default function Diesel() {
                       <p>{formatDate(entry.date)}</p>
                       <p className="font-mono text-[11px] text-slate-500">{entry.entryNo}</p>
                     </td>
-                    <td className={`${TD} font-mono font-semibold`}>{entry.vehicleId?.vehicleNo}</td>
+                    <td className={TD}>
+                      <p className="font-mono font-semibold">{entry.vehicleId?.vehicleNo}</p>
+                      <p className="text-xs text-slate-500">{entry.tripId ? `Trip ${entry.tripId.tripNo}${entry.tripId.from ? ` · ${entry.tripId.from} → ${entry.tripId.to}` : ''}` : 'No trip'}</p>
+                    </td>
                     <td className={TD}>
                       <p>{entry.partyId?.name || '—'}</p>
                       {entry.billNo && <p className="text-xs text-slate-500">Bill {entry.billNo}</p>}

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
-import { formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
+import { formatDate, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
 import { formatMeter, meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
@@ -16,6 +16,11 @@ const PAY_MODES = [
   { value: 'bank', label: 'Bank' },
   { value: 'credit', label: 'Credit (pay pump later)' },
 ];
+
+// How many of the vehicle's latest trips the dropdown offers
+const RECENT_TRIPS = 30;
+// Shown after a trip that is not finished yet
+const STATUS_TAG = { running: ' · Running', planned: ' · Planned' };
 
 // Litres to 2 places, money to 2 places, without trailing zeros
 const trim = (value) => String(Math.round(value * 100) / 100);
@@ -31,6 +36,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     date: toDayInput(entry.date),
     vehicleId: idOf(entry.vehicleId),
     partyId: idOf(entry.partyId),
+    tripId: idOf(entry.tripId),
     litres: String(entry.litres || ''),
     rate: String(entry.rate || ''),
     amount: String(entry.amount || ''),
@@ -39,12 +45,41 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     billNo: entry.billNo || '',
     notes: entry.notes || '',
   } : {
-    date: todayInput(), vehicleId: '', partyId: '', litres: '', rate: '', amount: '', meterReading: '', mode: 'cash', billNo: '', notes: '', ...preset,
+    date: todayInput(), vehicleId: '', partyId: '', tripId: '', litres: '', rate: '', amount: '', meterReading: '', mode: 'cash', billNo: '', notes: '', ...preset,
   }));
   const [addingPump, setAddingPump] = useState(false);
   const [saving, setSaving] = useState(false);
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const vehicle = vehicles.find((item) => item._id === form.vehicleId);
+
+  // The vehicle's trips, newest first, tagged with the vehicle they were fetched for
+  const [tripsOf, setTripsOf] = useState({ vehicleId: '', rows: [] });
+  useEffect(() => {
+    if (!form.vehicleId) return undefined;
+    let live = true;
+    apiClient.get('/trips', { params: { vehicleId: form.vehicleId } })
+      .catch(() => [])
+      .then((rows) => live && setTripsOf({ vehicleId: form.vehicleId, rows: Array.isArray(rows) ? rows : [] }));
+    return () => { live = false; };
+  }, [form.vehicleId]);
+  const tripsLoading = Boolean(form.vehicleId) && tripsOf.vehicleId !== form.vehicleId;
+  const allTrips = tripsLoading ? [] : tripsOf.rows;
+  // Its latest few are offered, plus the one already linked if older
+  const recentTrips = allTrips.slice(0, RECENT_TRIPS);
+  const linkedTrip = allTrips.find((row) => row._id === form.tripId);
+  const tripChoices = linkedTrip && !recentTrips.includes(linkedTrip) ? [...recentTrips, linkedTrip] : recentTrips;
+
+  // A new fill on a vehicle with a running trip is taken as that trip's diesel; otherwise no trip until one is picked
+  const autoPicked = useRef('');
+  useEffect(() => {
+    if (entry || tripsLoading || !form.vehicleId || autoPicked.current === form.vehicleId) return;
+    autoPicked.current = form.vehicleId;
+    const running = tripsOf.rows.find((row) => row.status === 'running');
+    if (running) setForm((prev) => ({ ...prev, tripId: running._id }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripsOf]);
+  // Another vehicle's trip never stays linked
+  const pickVehicle = (vehicleId) => setForm((prev) => ({ ...prev, vehicleId, tripId: vehicleId === prev.vehicleId ? prev.tripId : '' }));
 
   const changeLitres = (litres) => setForm((prev) => ({
     ...prev, litres, amount: toNumber(prev.rate) > 0 && toNumber(litres) > 0 ? trim(toNumber(litres) * toNumber(prev.rate)) : prev.amount,
@@ -98,7 +133,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
               <input id="dsl-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
             <Field label="Vehicle" required hint={vehicle?.currentKm ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
-              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => set('vehicleId', value)} required />
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
             <Field label="Petrol Pump" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['pump']} allowEmpty emptyLabel="Not saved (paid on the spot)" />
@@ -109,7 +144,20 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
           </FieldGrid>
         </FormSection>
 
-        <FormSection number={2} title="Diesel" tone="amber" hint="Type litres and rate, or the amount and rate: the third is worked out.">
+        <FormSection number={2} title="For Trip" tone="sky" hint="Which trip this diesel was filled for. Pick No Trip when the vehicle is not on one.">
+          <Field label="Trip" htmlFor="dsl-trip" hint={tripsLoading ? 'Loading trips…' : form.vehicleId && !allTrips.length ? 'No trips for this vehicle yet' : ''}>
+            <select id="dsl-trip" className="input" value={form.tripId} onChange={(event) => set('tripId', event.target.value)} disabled={!form.vehicleId}>
+              <option value="">{form.vehicleId ? 'No Trip (filled without a trip)' : 'Pick the vehicle first'}</option>
+              {tripChoices.map((trip) => (
+                <option key={trip._id} value={trip._id}>
+                  {trip.tripNo} · {formatDate(trip.date)} · {trip.from || '—'} → {trip.to || '—'}{trip.partyId?.name ? ` · ${trip.partyId.name}` : ''}{STATUS_TAG[trip.status] || ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </FormSection>
+
+        <FormSection number={3} title="Diesel" tone="amber" hint="Type litres and rate, or the amount and rate: the third is worked out.">
           <FieldGrid cols={3}>
             <Field label="Litres" required>
               <MoneyInput prefix="" suffix="ltr" value={form.litres} onChange={changeLitres} placeholder="0" required autoFocus={Boolean(preset.vehicleId)} />
@@ -133,7 +181,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
           </FieldGrid>
         </FormSection>
 
-        <FormSection number={3} title="Notes" tone="slate">
+        <FormSection number={4} title="Notes" tone="slate">
           <textarea rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Optional" />
         </FormSection>
       </FormPopup>
@@ -151,3 +199,4 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     </>
   );
 }
+

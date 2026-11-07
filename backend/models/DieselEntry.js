@@ -12,6 +12,8 @@ const dieselEntrySchema = new Schema(
     vehicleId: { type: ObjectId, ref: "Vehicle", required: true },
     // The petrol pump (a party); empty when not saved
     partyId: ref("Party"),
+    // The trip this diesel was filled for; empty when filled without a trip
+    tripId: ref("Trip"),
     litres: { type: Number, required: true, min: 0 },
     rate: money,
     amount: money,
@@ -26,6 +28,7 @@ const dieselEntrySchema = new Schema(
 );
 dieselEntrySchema.index({ userId: 1, date: -1 });
 dieselEntrySchema.index({ userId: 1, vehicleId: 1, date: -1 });
+dieselEntrySchema.index({ userId: 1, tripId: 1 });
 
 const DieselEntry = makeModel("DieselEntry", dieselEntrySchema);
 

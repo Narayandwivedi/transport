@@ -1,4 +1,4 @@
-const { Expense, Employee } = require("../models");
+const { Expense, Employee, DieselEntry } = require("../models");
 const { round2, toNumber, idOf, lineAmount, routeKey } = require("../utils/common");
 const { refuse, ownVehicle } = require("../utils/guards");
 const { refreshVehicleKm } = require("../utils/stock");
@@ -79,6 +79,8 @@ const crudOptions = {
   },
   afterDelete: async (req, doc) => {
     await Expense.deleteMany({ userId: req.userId, tripId: doc._id });
+    // Diesel filled for this trip stays, now without a trip
+    await DieselEntry.updateMany({ userId: req.userId, tripId: doc._id }, { $set: { tripId: null } });
     await refreshVehicleKm(req.userId, doc.vehicleId);
   },
 };

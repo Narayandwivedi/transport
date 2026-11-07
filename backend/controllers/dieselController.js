@@ -1,4 +1,4 @@
-const { Party, Expense } = require("../models");
+const { Party, Expense, Trip } = require("../models");
 const { round2, toNumber, idOf } = require("../utils/common");
 const { refuse, ownVehicle } = require("../utils/guards");
 const { refreshVehicleKm } = require("../utils/stock");
@@ -6,6 +6,8 @@ const { refreshVehicleKm } = require("../utils/stock");
 // Each diesel purchase keeps one Diesel expense on its vehicle
 const syncDieselExpense = async (userId, entry) => {
   const pump = entry.partyId ? await Party.findOne({ _id: entry.partyId, userId }).select("name").lean() : null;
+  const trip = entry.tripId ? await Trip.findOne({ _id: entry.tripId, userId }).select("tripNo from to").lean() : null;
+  const route = trip ? [trip.from, trip.to].filter(Boolean).join(" → ") : "";
   const data = {
     userId,
     date: entry.date,
@@ -15,7 +17,7 @@ const syncDieselExpense = async (userId, entry) => {
     odometer: toNumber(entry.meterReading),
     paidTo: pump?.name || "Petrol pump",
     mode: entry.mode,
-    notes: [`${entry.entryNo} · ${toNumber(entry.litres)} ltr × ₹${toNumber(entry.rate)}`, entry.billNo ? `Bill ${entry.billNo}` : "", entry.notes].filter(Boolean).join(" · "),
+    notes: [`${entry.entryNo} · ${toNumber(entry.litres)} ltr × ₹${toNumber(entry.rate)}`, trip ? `Trip ${trip.tripNo}${route ? ` (${route})` : ""}` : "", entry.billNo ? `Bill ${entry.billNo}` : "", entry.notes].filter(Boolean).join(" · "),
     source: "diesel",
     dieselEntryId: entry._id,
   };
@@ -25,15 +27,18 @@ const syncDieselExpense = async (userId, entry) => {
 // Diesel purchase: filled at a pump straight into a vehicle
 const crudOptions = {
   sort: { date: -1, createdAt: -1 },
-  populate: "vehicleId partyId",
+  populate: "vehicleId partyId tripId",
   dateField: "date",
-  filters: ["vehicleId", "partyId", "mode"],
+  filters: ["vehicleId", "partyId", "tripId", "mode"],
   searchFields: ["entryNo", "billNo", "notes"],
   number: { field: "entryNo", key: "diesel", prefix: "DSL" },
   prepare: async (req, data, old) => {
     if (old) delete data.entryNo;
     if (!data.vehicleId) throw refuse("Pick the vehicle");
     await ownVehicle(req, data.vehicleId);
+    // The trip must be one of this vehicle's; none means filled without a trip
+    if (data.tripId && !(await Trip.exists({ _id: data.tripId, userId: req.userId, vehicleId: data.vehicleId }))) throw refuse("That trip is not of this vehicle");
+    if (!data.tripId) data.tripId = null;
     if (data.partyId && !(await Party.exists({ _id: data.partyId, userId: req.userId }))) throw refuse("Petrol pump not found");
     const litres = toNumber(data.litres);
     if (!(litres > 0)) throw refuse("Enter the litres");
