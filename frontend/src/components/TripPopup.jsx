@@ -23,7 +23,7 @@ const CHARGE_TYPES = [
 ];
 
 // What the quantity box asks for under each way of charging (per ton per km: the tons; the km has its own box)
-const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Kilometres', per_ton: 'Weight', per_ton_km: 'Weight', per_cft: 'Cubic Feet' };
+const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Distance', per_ton: 'Weight', per_ton_km: 'Weight', per_cft: 'Cubic Feet' };
 const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded', per_ton_km: 'Tons loaded', per_cft: 'How many cubic feet' };
 const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
