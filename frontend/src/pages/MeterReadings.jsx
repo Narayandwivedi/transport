@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
 import useMasters from '../utils/useMasters';
-import { formatDate, formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
+import { formatDate, idOf, toDayInput, todayInput } from '../utils/format';
 import { closingOf, formatMeter, meterUnitOf, openingOf, runOf } from '../utils/meter';
 import DieselPopup from '../components/DieselPopup';
 import FormPopup from '../components/FormPopup';
@@ -302,10 +302,7 @@ export default function MeterReadings() {
                           {reading.sinceLast !== null ? formatMeter(reading.sinceLast, reading.vehicleId) : '—'}
                           {reading.sinceLast !== null && <p className="text-[11px] font-normal text-slate-500">since last fill</p>}
                         </td>
-                        <td className={TD}>
-                          <p>{formatNumber(reading.litres)} ltr{reading.partyId?.name ? ` · ${reading.partyId.name}` : ''}</p>
-                          <p className="text-xs text-slate-500">{reading.tripId ? `Trip ${reading.tripId.tripNo}` : 'No trip'}</p>
-                        </td>
+                        <td className={TD}>—</td>
                         <td className={TD} onClick={(event) => event.stopPropagation()}>
                           <div className="flex justify-end">
                             <RowAction title="Edit diesel entry" icon={Pencil} onClick={() => setEditingDiesel(reading)} />
