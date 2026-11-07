@@ -66,7 +66,7 @@ export default function Trips() {
             <table className="w-full min-w-[980px] text-left">
               <thead>
                 <tr>
-                  <th className={TH}>Trip</th>
+                  <th className={TH}>Date</th>
                   <th className={TH}>Vehicle</th>
                   <th className={TH}>Party</th>
                   <th className={TH}>Route</th>
@@ -81,8 +81,8 @@ export default function Trips() {
                 {list.map((trip) => (
                   <tr key={trip._id} className="tbl-row cursor-pointer" onClick={() => setEditing(trip)}>
                     <td className={TD}>
-                      <p className="font-mono text-xs font-semibold text-slate-800">{trip.tripNo}</p>
-                      <p className="whitespace-nowrap text-xs text-slate-500">{formatDate(trip.date)}</p>
+                      <p className="whitespace-nowrap font-semibold text-slate-800">{formatDate(trip.date)}</p>
+                      <p className="font-mono text-[11px] text-slate-500">{trip.tripNo}</p>
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>
                       <p className="font-mono font-semibold">{trip.vehicleId?.vehicleNo || '—'}</p>
