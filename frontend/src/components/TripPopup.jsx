@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CircleCheck, Clock, Coins, Package, PackageCheck, Trash2 } from 'lucide-react';
+import { ArrowRight, Package, PackageCheck, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -27,12 +27,7 @@ const QUANTITY_LABELS = { per_trip: 'Trips', per_km: 'Distance', per_ton: 'Weigh
 const QUANTITY_PLACEHOLDERS = { per_trip: '1', per_km: 'How many km', per_ton: 'Tons loaded', per_ton_km: 'Tons loaded', per_cft: 'How many cubic feet' };
 const QUANTITY_UNITS = { per_ton_km: 'ton' };
 
-// How much the party paid on the trip itself; the rest stays owed in its ledger
-const PAYMENT_TYPES = [
-  { value: 'credit', label: 'Credit (Pay Later)', icon: Clock },
-  { value: 'partial', label: 'Partial Payment', icon: Coins },
-  { value: 'full', label: 'Full Payment', icon: CircleCheck },
-];
+// How the party paid what it paid on the trip (the rest stays owed in its ledger)
 const RECEIVED_MODES = [
   { value: 'cash', label: 'Cash' },
   { value: 'upi', label: 'UPI' },
@@ -48,7 +43,7 @@ const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
   driverId: '', hireBasis: '', hireQuantity: '', hireRate: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
-  paymentType: 'credit', receivedAmount: '', receivedMode: 'cash',
+  receivedAmount: '', receivedMode: 'cash',
 };
 
 // Routes match without caring about capitals or extra spaces
@@ -96,8 +91,7 @@ const fromTrip = (trip) => ({
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverId: idOf(trip.driverId),
-  paymentType: trip.paymentType || 'credit',
-  receivedAmount: trip.paymentType === 'partial' ? String(trip.receivedAmount || '') : '',
+  receivedAmount: trip.receivedAmount ? String(trip.receivedAmount) : '',
   receivedMode: trip.receivedMode || 'cash',
   // Always at least one expense row to fill
   expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '' })) : [EMPTY_EXPENSE],
@@ -249,10 +243,11 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const removeExpense = (index) => setForm((prev) => ({ ...prev, expenses: prev.expenses.filter((_, i) => i !== index) }));
   // Profit on the transport: what the party pays for it, less the owner's pay and the trip's expenses
   const margin = amount - hireAmount - expenseTotal;
-  // Paid on the trip: full follows the bill as it changes; partial is what was typed
-  const paymentType = form.paymentType || 'credit';
-  const received = paymentType === 'full' ? total : paymentType === 'partial' ? toNumber(form.receivedAmount) : 0;
+  // Paid now on the trip: nothing = credit, part = partial, all = fully paid
+  const received = toNumber(form.receivedAmount);
   const balanceDue = Math.max(0, total - received);
+  let paymentLabel = 'Credit trip';
+  if (received > 0) paymentLabel = received >= total ? 'Fully paid' : 'Partial payment';
 
   const handleSubmit = async () => {
     if (!String(form.from || '').trim() || !String(form.to || '').trim()) {
@@ -265,10 +260,6 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     }
     if (suppliesMaterial && !String(form.material || '').trim()) {
       toast.error('Enter which material you supplied');
-      return;
-    }
-    if (paymentType === 'partial' && !(received > 0)) {
-      toast.error('Enter how much the party paid, or pick Credit');
       return;
     }
     if (received > total) {
@@ -468,47 +459,31 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
         {/* 4. How much the party paid on this trip */}
         <FormSection number={4} title="Payment from Party" tone="indigo" hint="What is not paid now stays due in the party's ledger.">
-          <div className="grid grid-cols-1 gap-1 rounded-xl bg-white/70 p-1 ring-1 ring-indigo-200 sm:grid-cols-3">
-            {PAYMENT_TYPES.map(({ value, label, icon: Icon }) => {
-              const active = paymentType === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => set('paymentType', value)}
-                  aria-pressed={active}
-                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-                >
-                  <Icon size={16} /> {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {paymentType !== 'credit' && (
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <Field label={paymentType === 'full' ? 'Amount Received' : 'Amount Received Now'} required>
-                {paymentType === 'full' ? (
-                  <MoneyInput value={total ? String(total) : ''} onChange={() => {}} disabled />
-                ) : (
-                  <MoneyInput value={form.receivedAmount} onChange={(value) => set('receivedAmount', value)} placeholder="How much paid" required />
-                )}
-              </Field>
+          {/* Total, then what is paid now; nothing paid = credit */}
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 ${received > 0 ? 'md:grid-cols-3' : ''}`}>
+            <Field label="Total Amount">
+              <div className="input flex items-center bg-slate-50 font-bold text-slate-900">{formatRupees(total)}</div>
+            </Field>
+            <Field label="Pay Now" htmlFor="trip-pay-now" action={total > 0 && <AddLink onClick={() => set('receivedAmount', String(total))}>Full amount</AddLink>}>
+              <MoneyInput id="trip-pay-now" value={form.receivedAmount} onChange={(value) => set('receivedAmount', value)} placeholder="0 (credit)" />
+            </Field>
+            {/* Which way the money came only matters when some was paid */}
+            {received > 0 && (
               <Field label="Received In" htmlFor="trip-received-mode">
                 <select id="trip-received-mode" className="input" value={form.receivedMode} onChange={(event) => set('receivedMode', event.target.value)}>
                   {RECEIVED_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </Field>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 ring-1 ${balanceDue > 0 ? 'bg-amber-50 ring-amber-200' : 'bg-emerald-50 ring-emerald-200'}`}>
-            <span className={`text-sm ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
-              Bill {formatRupees(total)} · Received {formatRupees(received)}
-              {received > total && <span className="ml-2 font-semibold text-rose-700">more than the bill</span>}
+            <span className={`text-sm font-semibold ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+              {paymentLabel}
+              {received > total && <span className="ml-2 text-rose-700">more than the bill</span>}
             </span>
-            <span className={`text-lg font-bold ${balanceDue > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {balanceDue > 0 ? `Due ${formatRupees(balanceDue)}` : total > 0 ? 'Fully paid' : formatRupees(0)}
+            <span className={`text-sm font-semibold ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+              Balance: <span className="text-lg font-bold">{formatRupees(balanceDue)}</span>
             </span>
           </div>
         </FormSection>
