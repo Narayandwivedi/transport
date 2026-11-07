@@ -59,9 +59,9 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
     setSaving(true);
     try {
       const payload = { date: form.date, vehicleId: form.vehicleId, openingReading: openingNum, closingReading: closingNum, notes: form.notes };
-      if (reading) await apiClient.put(`/meter-readings/${reading._id}`, payload);
-      else await apiClient.post('/meter-readings', payload);
-      toast.success(reading ? 'Reading updated' : 'Reading saved');
+      const saved = reading ? await apiClient.put(`/meter-readings/${reading._id}`, payload) : await apiClient.post('/meter-readings', payload);
+      // A staff save with "save on approval" waits for the owner
+      toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : reading ? 'Reading updated' : 'Reading saved');
       onSaved?.();
       onClose();
     } catch (error) {

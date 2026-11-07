@@ -6,6 +6,7 @@ import apiClient from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getStoredTheme, setStoredTheme } from '../utils/theme';
 import FormSection from '../components/FormSection';
+import StaffSettings from '../components/StaffSettings';
 import Segmented from '../components/Segmented';
 import { Field, MoneyInput, Page, PageHeader } from '../components/ui';
 
@@ -55,7 +56,7 @@ export default function Settings() {
 
   return (
     <Page>
-      <PageHeader title="Settings" subtitle="Company details for quotations, alerts and appearance">
+      <PageHeader title="Settings" subtitle="Company details, staff logins, alerts and appearance">
         <button type="button" className="btn-secondary" onClick={signOut}><LogOut size={16} /> Sign Out</button>
       </PageHeader>
 
@@ -102,6 +103,9 @@ export default function Settings() {
           <button type="submit" className="btn-primary px-8" disabled={saving}><Save size={16} /> Save Settings</button>
         </div>
       </form>
+
+      {/* Staff logins: separate sign-in, only the add buttons, with "save on approval" */}
+      <StaffSettings />
     </Page>
   );
 }

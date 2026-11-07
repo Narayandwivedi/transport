@@ -107,9 +107,9 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     setSaving(true);
     try {
       const payload = { ...form, paidAmount: paid };
-      if (entry) await apiClient.put(`/diesel-entries/${entry._id}`, payload);
-      else await apiClient.post('/diesel-entries', payload);
-      toast.success(entry ? 'Diesel entry updated' : 'Diesel purchase saved');
+      const saved = entry ? await apiClient.put(`/diesel-entries/${entry._id}`, payload) : await apiClient.post('/diesel-entries', payload);
+      // A staff save with "save on approval" waits for the owner
+      toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : entry ? 'Diesel entry updated' : 'Diesel purchase saved');
       onSaved?.();
       onClose();
     } catch (error) {

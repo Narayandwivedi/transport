@@ -23,9 +23,9 @@ export default function PaymentPopup({ payment = null, preset = {}, onClose, onS
     setSaving(true);
     try {
       const payload = { date: form.date, type: form.type, partyId: form.partyId, amount: form.amount, mode: form.mode, reference: form.reference, notes: form.notes };
-      if (payment) await apiClient.put(`/payments/${payment._id}`, payload);
-      else await apiClient.post('/payments', payload);
-      toast.success('Payment saved');
+      const saved = payment ? await apiClient.put(`/payments/${payment._id}`, payload) : await apiClient.post('/payments', payload);
+      // A staff save with "save on approval" waits for the owner
+      toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : 'Payment saved');
       onSaved?.();
       onClose();
     } catch (error) {

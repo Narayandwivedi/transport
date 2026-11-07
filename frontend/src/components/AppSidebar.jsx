@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bell, Route, CalendarClock, Wallet, Package, Gauge, Wrench, FileBadge, ChartColumn,
-  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel, Droplet,
+  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel, Droplet, ListChecks,
 } from 'lucide-react';
 import Logo from './Logo';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,7 @@ const navGroups = [
     items: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/alerts', icon: Bell, label: 'Alerts', badge: 'alerts' },
+      { to: '/activity', icon: ListChecks, label: 'Activity Center', badge: 'approvals' },
       { to: '/reports', icon: ChartColumn, label: 'Profit Reports' },
     ],
   },
@@ -98,7 +99,7 @@ export default function AppSidebar({ mobileOpen = false, onClose }) {
   const { alerts } = useAlerts();
   const location = useLocation();
   const activePath = getActivePath(location.pathname);
-  const badges = { alerts: alerts?.count || 0 };
+  const badges = { alerts: alerts?.count || 0, approvals: alerts?.pendingApprovals || 0 };
 
   // Close the mobile drawer after navigating
   useEffect(() => {

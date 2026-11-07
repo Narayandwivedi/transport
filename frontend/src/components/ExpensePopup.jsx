@@ -26,9 +26,9 @@ export default function ExpensePopup({ expense = null, preset = {}, onClose, onS
     setSaving(true);
     try {
       const payload = { date: form.date, vehicleId: form.vehicleId, category: form.category, amount: form.amount, odometer: form.odometer, paidTo: form.paidTo, mode: form.mode, notes: form.notes };
-      if (expense) await apiClient.put(`/expenses/${expense._id}`, payload);
-      else await apiClient.post('/expenses', payload);
-      toast.success('Expense saved');
+      const saved = expense ? await apiClient.put(`/expenses/${expense._id}`, payload) : await apiClient.post('/expenses', payload);
+      // A staff save with "save on approval" waits for the owner
+      toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : 'Expense saved');
       onSaved?.();
       onClose();
     } catch (error) {

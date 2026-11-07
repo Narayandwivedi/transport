@@ -1,3 +1,4 @@
+const { summarizer } = require("../utils/activity");
 const { Party, Expense, Trip } = require("../models");
 const { round2, toNumber, idOf } = require("../utils/common");
 const { refuse, ownVehicle } = require("../utils/guards");
@@ -27,6 +28,9 @@ const syncDieselExpense = async (userId, entry) => {
 
 // Diesel purchase: filled at a pump straight into a vehicle
 const crudOptions = {
+  // Staff can add these; see utils/crud.js
+  entity: "diesel",
+  summarize: summarizer("diesel"),
   sort: { date: -1, createdAt: -1 },
   populate: "vehicleId partyId tripId",
   dateField: "date",

@@ -1,5 +1,5 @@
 const {
-  User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, DieselEntry, Maintenance, Document, Employee,
+  User, Party, Vehicle, PendingChange, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, DieselEntry, Maintenance, Document, Employee,
 } = require("../models");
 const { mileageReport } = require("./mileage");
 const { contractAmount, contractSegments, dayNum, todayNum, round2, toNumber, idOf, DAY_MS } = require("./common");
@@ -339,6 +339,8 @@ const alerts = async (userId) => {
     // Mileage over the last 3 months, against each vehicle's expected mileage
     mileageReport(userId, { months: 3 }),
   ]);
+  // Staff entries waiting for the owner's approval (shown on the Activity Center link, not as an alert)
+  const pendingApprovals = await PendingChange.countDocuments({ userId, status: "pending" });
   const lowMileage = mileage.vehicles
     .filter((row) => row.state === "low")
     .map(({ entries, low, high, ...row }) => row);
@@ -365,6 +367,7 @@ const alerts = async (userId) => {
     lowStock,
     licenses,
     lowMileage,
+    pendingApprovals,
     count: documents.length + maintenance.length + lowStock.length + licenses.length + lowMileage.length,
     urgent: documents.filter((doc) => doc.status === "expired").length
       + licenses.filter((employee) => employee.status === "expired").length

@@ -1,3 +1,4 @@
+const { summarizer } = require("../utils/activity");
 const { Expense, Employee, DieselEntry } = require("../models");
 const { round2, toNumber, idOf, lineAmount, routeKey } = require("../utils/common");
 const { refuse, ownVehicle } = require("../utils/guards");
@@ -22,6 +23,9 @@ const syncTripExpenses = async (userId, trip) => {
 };
 
 const crudOptions = {
+  // Staff can add these; see utils/crud.js
+  entity: "trip",
+  summarize: summarizer("trip"),
   sort: { date: -1, createdAt: -1 },
   populate: "vehicleId partyId hirePartyId driverId",
   dateField: "date",

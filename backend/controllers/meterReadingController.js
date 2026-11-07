@@ -1,3 +1,4 @@
+const { summarizer } = require("../utils/activity");
 const { toNumber, idOf } = require("../utils/common");
 const { refuse, ownVehicle } = require("../utils/guards");
 const { refreshVehicleKm } = require("../utils/stock");
@@ -6,6 +7,9 @@ const meterValue = (value) => (value === "" || value === null || value === undef
 
 // Opening and closing meter of a vehicle's run; the closing can be filled in later
 const crudOptions = {
+  // Staff can add these; see utils/crud.js
+  entity: "reading",
+  summarize: summarizer("reading"),
   sort: { date: -1, reading: -1 },
   populate: "vehicleId",
   dateField: "date",

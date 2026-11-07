@@ -1,3 +1,4 @@
+const { summarizer } = require("../utils/activity");
 const { Expense } = require("../models");
 const { ownVehicle } = require("../utils/guards");
 const { refreshVehicleKm } = require("../utils/stock");
@@ -10,6 +11,9 @@ const DEFAULT_CATEGORIES = [
 
 // Entered here: manual. Made elsewhere (stock issue, payroll, trip, diesel): changed only where they came from.
 const crudOptions = {
+  // Staff can add these; see utils/crud.js
+  entity: "expense",
+  summarize: summarizer("expense"),
   sort: { date: -1, createdAt: -1 },
   populate: "vehicleId",
   dateField: "date",

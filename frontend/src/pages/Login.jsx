@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Building2, Eye, EyeOff, Loader2, Lock, LogIn, Mail, ShieldCheck, Smartphone, User } from 'lucide-react';
+import { AlertCircle, Building2, Eye, EyeOff, Loader2, Lock, LogIn, Mail, ShieldCheck, Smartphone, User, UserCog } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
@@ -12,6 +12,7 @@ const LINK = 'cursor-pointer text-sm font-semibold text-primary-700 hover:text-p
 const HEADINGS = {
   login: ['Login to TransportBook', 'Welcome back 👋 Sign in to manage your vehicles and trips.'],
   register: ['Create your free account', 'Start managing your transport business with TransportBook.'],
+  staff: ['Staff Login', 'Sign in with the mobile number and password your owner gave you.'],
 };
 
 function IconInput({ icon: Icon, className = '', ...props }) {
@@ -46,7 +47,7 @@ function PasswordInput({ show, onToggle, ...props }) {
 }
 
 export default function Login() {
-  const { login, register } = useAuth();
+  const { login, staffLogin, register } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ login: '', password: '', name: '', companyName: '', mobile: '', email: '' });
@@ -66,15 +67,16 @@ export default function Login() {
     event.preventDefault();
     setBusy(true);
     setError('');
-    const result = mode === 'login'
-      ? await login(form.login, form.password)
-      : await register({ name: form.name, companyName: form.companyName, mobile: form.mobile, email: form.email, password: form.password });
+    let result;
+    if (mode === 'login') result = await login(form.login, form.password);
+    else if (mode === 'staff') result = await staffLogin(form.login, form.password);
+    else result = await register({ name: form.name, companyName: form.companyName, mobile: form.mobile, email: form.email, password: form.password });
     setBusy(false);
     if (!result.success) {
       setError(result.message);
       return;
     }
-    toast.success(mode === 'login' ? 'Welcome back' : 'Account created');
+    toast.success(mode === 'register' ? 'Account created' : 'Welcome back');
     navigate('/', { replace: true });
   };
 
@@ -106,6 +108,23 @@ export default function Login() {
             <Logo subtitle="Transport Management" />
           </div>
 
+          {/* Owner or staff: staff get only the add buttons and their own entries */}
+          {mode !== 'register' && (
+            <div className="mb-6 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+              {[{ key: 'login', label: 'Owner', icon: User }, { key: 'staff', label: 'Staff', icon: UserCog }].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => switchMode(key)}
+                  aria-pressed={mode === key}
+                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-bold transition ${mode === key ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  <Icon size={16} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="mb-6">
             <h1 className="text-[1.75rem] font-bold text-slate-900 sm:text-[2rem]">{title}</h1>
             <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
@@ -119,9 +138,19 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {mode === 'login' ? (
+            {mode !== 'register' ? (
               <div className="space-y-4">
-                <IconInput icon={Smartphone} value={form.login} onChange={update('login')} placeholder="Mobile Number or Email" autoComplete="username" required autoFocus disabled={busy} />
+                <IconInput
+                  icon={Smartphone}
+                  value={form.login}
+                  onChange={update('login')}
+                  placeholder={mode === 'staff' ? 'Mobile Number' : 'Mobile Number or Email'}
+                  inputMode={mode === 'staff' ? 'tel' : undefined}
+                  autoComplete="username"
+                  required
+                  autoFocus
+                  disabled={busy}
+                />
                 <PasswordInput show={showPassword} onToggle={() => setShowPassword((v) => !v)} value={form.password} onChange={update('password')} placeholder="Password" autoComplete="current-password" required disabled={busy} />
               </div>
             ) : (
@@ -138,9 +167,9 @@ export default function Login() {
               {busy ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  <span>{mode === 'login' ? 'Logging in...' : 'Creating...'}</span>
+                  <span>{mode === 'register' ? 'Creating...' : 'Logging in...'}</span>
                 </>
-              ) : mode === 'login' ? (
+              ) : mode !== 'register' ? (
                 <>
                   <LogIn size={20} />
                   <span>Login</span>
@@ -151,12 +180,16 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-10 text-center text-sm text-slate-500">
-            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-            <button type="button" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')} className={LINK}>
-              {mode === 'login' ? 'Register Now' : 'Login'}
-            </button>
-          </p>
+          {mode === 'staff' ? (
+            <p className="mt-10 text-center text-sm text-slate-500">No staff login? Ask your owner to add you in Settings → Staff.</p>
+          ) : (
+            <p className="mt-10 text-center text-sm text-slate-500">
+              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button type="button" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')} className={LINK}>
+                {mode === 'login' ? 'Register Now' : 'Login'}
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </div>

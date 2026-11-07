@@ -20,6 +20,8 @@ const Quotation = require("./Quotation");
 const Employee = require("./Employee");
 const Attendance = require("./Attendance");
 const PayrollEntry = require("./PayrollEntry");
+const Staff = require("./Staff");
+const PendingChange = require("./PendingChange");
 
 module.exports = {
   BILLING_BASES,
@@ -45,4 +47,6 @@ module.exports = {
   Employee,
   Attendance,
   PayrollEntry,
+  Staff,
+  PendingChange,
 };

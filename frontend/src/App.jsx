@@ -26,9 +26,21 @@ import Drivers from './pages/Drivers';
 import PartyLedger from './pages/PartyLedger';
 import Settings from './pages/Settings';
 import Payroll from './pages/Payroll';
+import ActivityCenter from './pages/ActivityCenter';
+import StaffHome from './pages/StaffHome';
 
 export default function App() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, isStaff } = useAuth();
+
+  // A staff login gets one page: the add buttons the owner allowed and their own entries
+  if (isStaff) {
+    return (
+      <Routes>
+        <Route path="/" element={<StaffHome />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
 
   return (
     <Routes>
@@ -38,6 +50,7 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/activity" element={<ActivityCenter />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/trips" element={<Trips />} />
         <Route path="/monthly-hire" element={<MonthlyHire />} />

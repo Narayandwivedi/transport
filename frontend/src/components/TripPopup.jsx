@@ -3,6 +3,7 @@ import { ArrowRight, Package, PackageCheck, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
+import { useAuth } from '../context/AuthContext';
 import { TRIP_BASIS_OPTIONS, calcAmount, getBasisUnit } from '../utils/constants';
 import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
 import FormPopup from './FormPopup';
@@ -116,6 +117,8 @@ const sumText = (basis, quantity, rate, km) => {
  */
 export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }) {
   const { vehicles, parties, reload: reloadParties } = useMasters();
+  // Staff pick from the drivers the owner added; they cannot add one
+  const { isStaff } = useAuth();
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
   const [addingParty, setAddingParty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -271,9 +274,9 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
       // distanceKm carries the km of a per ton per km charge, the party's or the owner's
       const distanceKm = basis === 'per_ton_km' || (isHired && hireBasis === 'per_ton_km') ? hireKm : 0;
       const payload = { ...form, hireQuantity, distanceKm, receivedAmount: received };
-      if (trip) await apiClient.put(`/trips/${trip._id}`, payload);
-      else await apiClient.post('/trips', payload);
-      toast.success(trip ? 'Trip updated' : 'Trip added');
+      const saved = trip ? await apiClient.put(`/trips/${trip._id}`, payload) : await apiClient.post('/trips', payload);
+      // A staff save with "save on approval" waits for the owner
+      toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : trip ? 'Trip updated' : 'Trip added');
       onSaved?.();
       onClose();
     } catch (error) {
@@ -328,7 +331,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Vehicle" required>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
-            <Field label="Driver" htmlFor="trip-driver" action={<AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
+            <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
               <select id="trip-driver" className="input" value={form.driverId} onChange={(event) => set('driverId', event.target.value)}>
                 <option value="">Select driver</option>
                 {driverOptions.map((driver) => (
