@@ -271,17 +271,17 @@ export default function MeterReadings() {
           <EmptyState title={source === 'diesel' ? 'No meter noted at a diesel fill' : 'No readings yet'} hint={source === 'diesel' ? 'Enter the meter reading on a Diesel Purchase and it shows here.' : 'Use "Add Reading" or tap a vehicle above.'} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left">
+            <table className="w-full min-w-[860px] table-fixed text-left">
               <thead>
                 <tr>
                   <th className={TH}>Date</th>
                   <th className={TH}>Vehicle</th>
                   <th className={TH}>Taken At</th>
-                  <th className={`${TH} text-right`}>Opening</th>
-                  <th className={`${TH} text-right`}>Closing</th>
-                  <th className={`${TH} text-right`}>Run</th>
+                  <th className={TH}>Opening</th>
+                  <th className={TH}>Closing</th>
+                  <th className={TH}>Run</th>
                   <th className={TH}>Notes</th>
-                  <th className={TH} />
+                  <th className={`${TH} w-24`} />
                 </tr>
               </thead>
               <tbody>
@@ -291,14 +291,14 @@ export default function MeterReadings() {
                       <tr key={`dsl-${reading._id}`} className="tbl-row cursor-pointer bg-amber-50/40" onClick={() => setEditingDiesel(reading)}>
                         <td className={`${TD} whitespace-nowrap`}>{formatDate(reading.date)}</td>
                         <td className={`${TD} font-mono font-semibold`}>{reading.vehicleId?.vehicleNo}</td>
-                        <td className={TD}>
+                        <td className={`${TD} whitespace-nowrap`}>
                           <span className="badge-orange inline-flex items-center gap-1"><Fuel size={12} /> Diesel fill</span>
                           <p className="mt-0.5 font-mono text-[11px] text-slate-500">{reading.entryNo}</p>
                         </td>
-                        <td className={`${TD} text-right font-semibold`} colSpan={2}>
+                        <td className={`${TD} whitespace-nowrap font-semibold`} colSpan={2}>
                           {formatMeter(reading.meterReading, reading.vehicleId)}
                         </td>
-                        <td className={`${TD} text-right font-semibold text-primary-700`}>
+                        <td className={`${TD} whitespace-nowrap font-semibold text-primary-700`}>
                           {reading.sinceLast !== null ? formatMeter(reading.sinceLast, reading.vehicleId) : '—'}
                           {reading.sinceLast !== null && <p className="text-[11px] font-normal text-slate-500">since last fill</p>}
                         </td>
@@ -318,14 +318,14 @@ export default function MeterReadings() {
                     <tr key={reading._id} className="tbl-row">
                       <td className={`${TD} whitespace-nowrap`}>{formatDate(reading.date)}</td>
                       <td className={`${TD} font-mono font-semibold`}>{reading.vehicleId?.vehicleNo}</td>
-                      <td className={TD}><span className="badge-blue inline-flex items-center gap-1"><Gauge size={12} /> Meter reading</span></td>
-                      <td className={`${TD} text-right`}>{opening !== null ? formatMeter(opening, reading.vehicleId) : '—'}</td>
-                      <td className={`${TD} text-right font-semibold`}>
+                      <td className={`${TD} whitespace-nowrap`}><span className="badge-blue inline-flex items-center gap-1"><Gauge size={12} /> Meter reading</span></td>
+                      <td className={`${TD} whitespace-nowrap`}>{opening !== null ? formatMeter(opening, reading.vehicleId) : '—'}</td>
+                      <td className={`${TD} whitespace-nowrap font-semibold`}>
                         {closing !== null ? formatMeter(closing, reading.vehicleId) : (
                           <button type="button" className="badge-orange hover:brightness-95" onClick={() => setEditing(reading)}>Enter closing</button>
                         )}
                       </td>
-                      <td className={`${TD} text-right font-semibold text-primary-700`}>{run !== null ? formatMeter(run, reading.vehicleId) : '—'}</td>
+                      <td className={`${TD} whitespace-nowrap font-semibold text-primary-700`}>{run !== null ? formatMeter(run, reading.vehicleId) : '—'}</td>
                       <td className={TD}>{reading.notes || '—'}</td>
                       <td className={TD}>
                         <div className="flex justify-end">
