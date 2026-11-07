@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BellOff, FileWarning, IdCard, PackageX, Wrench } from 'lucide-react';
+import { BellOff, Droplet, FileWarning, IdCard, PackageX, Wrench } from 'lucide-react';
 import { useAlerts } from '../context/AlertsContext';
 import { daysLeftText, formatDate, formatNumber, idOf } from '../utils/format';
 import { STATUS_BADGES, getDocTypeLabel } from '../utils/constants';
@@ -30,21 +30,23 @@ export default function Alerts() {
   const [servicing, setServicing] = useState(null);
 
   if (!alerts) return <Page><Loading /></Page>;
-  const { documents, maintenance, lowStock, licenses = [] } = alerts;
+  const { documents, maintenance, lowStock, licenses = [], lowMileage = [] } = alerts;
+  const mileageUnit = (row) => (row.unit === 'hrs' ? 'ltr/hr' : 'km/l');
 
   return (
     <Page>
       <PageHeader title="Alerts" subtitle="Checked automatically every time you open a page" />
 
-      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-5">
         <StatCard compact icon={FileWarning} tone={documents.length ? 'rose' : 'slate'} label="Documents" value={documents.length} hint="Expired or expiring" />
         <StatCard compact icon={Wrench} tone={maintenance.length ? 'amber' : 'slate'} label="Services Due" value={maintenance.length} hint="By km or by date" />
         <StatCard compact icon={IdCard} tone={licenses.length ? 'rose' : 'slate'} label="Driving Licences" value={licenses.length} hint="Expired or expiring" />
         <StatCard compact icon={PackageX} tone={lowStock.length ? 'amber' : 'slate'} label="Low Stock" value={lowStock.length} />
+        <StatCard compact icon={Droplet} tone={lowMileage.length ? 'rose' : 'slate'} label="Low Mileage" value={lowMileage.length} hint="Last 3 months" />
       </section>
 
       {alerts.count === 0 && (
-        <section className="panel"><EmptyState icon={BellOff} title="All clear" hint="No document or licence is expiring, no service is due and stock is fine." /></section>
+        <section className="panel"><EmptyState icon={BellOff} title="All clear" hint="No document or licence is expiring, no service is due, stock is fine and mileage is as expected." /></section>
       )}
 
       {documents.length > 0 && (
@@ -106,6 +108,26 @@ export default function Alerts() {
                 title={`${employee.name}${employee.vehicleId?.vehicleNo ? ` · ${employee.vehicleId.vehicleNo}` : ''}`}
                 detail={`Licence ${employee.licenseNo || ''} · expiry ${formatDate(employee.licenseExpiry)} · ${daysLeftText(employee.daysLeft)}`}
                 badge={<span className={STATUS_BADGES[employee.status].className}>{STATUS_BADGES[employee.status].label}</span>}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {lowMileage.length > 0 && (
+        <section className="panel">
+          <div className="panel-header flex items-center justify-between py-2.5">
+            <h2 className="text-sm font-bold text-slate-800">Low Mileage</h2>
+            <Link to="/mileage" className="text-xs font-semibold text-primary-600 hover:underline">Mileage</Link>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {lowMileage.map((row) => (
+              <AlertRow
+                key={String(row.vehicleId)}
+                tone="red"
+                title={`${row.vehicleNo} · ${formatNumber(row.mileage, 2)} ${mileageUnit(row)}`}
+                detail={`Expected ${formatNumber(row.expected, 2)} ${mileageUnit(row)} · ${formatNumber(row.km, 0)} ${row.unit} on ${formatNumber(row.litres, 0)} ltr in the last 3 months. Check for a leak, theft or a wrong reading.`}
+                badge={<span className="badge-red">{Math.abs(Math.round(row.vsExpected * 100))}% {row.unit === 'hrs' ? 'over' : 'under'}</span>}
               />
             ))}
           </div>

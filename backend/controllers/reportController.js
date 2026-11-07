@@ -1,6 +1,7 @@
 const { Vehicle, Trip, Contract } = require("../models");
 const { monthRange, round2, toNumber } = require("../utils/common");
 const reports = require("../utils/reports");
+const { mileageReport } = require("../utils/mileage");
 
 // ?from=&to= days, or ?month=YYYY-MM (this month when neither is given)
 const periodFrom = (query) => {
@@ -25,6 +26,12 @@ const partyLedger = async (req, res) => {
   const ledger = await reports.partyLedger(req.userId, req.params.id);
   if (!ledger) return res.status(404).json({ message: "Party not found" });
   res.json(ledger);
+};
+
+// ?months=3|6|12|0 (0 = all time) &vehicleId=
+const mileage = async (req, res) => {
+  const months = [0, 1, 3, 6, 12].includes(toNumber(req.query.months, 3)) ? toNumber(req.query.months, 3) : 3;
+  res.json(await mileageReport(req.userId, { months, vehicleId: req.query.vehicleId || "" }));
 };
 
 const alerts = async (req, res) => {
@@ -64,4 +71,4 @@ const dashboard = async (req, res) => {
   });
 };
 
-module.exports = { profit, trend, balances, partyLedger, alerts, dashboard };
+module.exports = { profit, trend, balances, partyLedger, mileage, alerts, dashboard };

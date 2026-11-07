@@ -14,6 +14,7 @@ const crudOptions = {
       data.hireBasis = "";
       data.hireRate = 0;
     }
+    if (data.expectedMileage !== undefined) data.expectedMileage = Math.max(0, toNumber(data.expectedMileage));
     if (data.ownership === "hired" && !data.ownerPartyId) throw refuse("Pick the party the vehicle is hired from");
     if (data.routeRates !== undefined) {
       data.routeRates = (Array.isArray(data.routeRates) ? data.routeRates : [])

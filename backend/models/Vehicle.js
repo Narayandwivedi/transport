@@ -33,6 +33,8 @@ const vehicleSchema = new Schema(
     meterUnit: { type: String, enum: ["km", "hrs"], default: "km" },
     // Latest meter reading (km or hrs as meterUnit says), kept up to date from meter readings and trips
     currentKm: money,
+    // What the vehicle should give: km per litre, or litres per hour on an hour meter; 0 = not set
+    expectedMileage: money,
     driverName: text,
     driverMobile: text,
     status: { type: String, enum: ["active", "inactive", "sold"], default: "active" },

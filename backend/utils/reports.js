@@ -1,6 +1,7 @@
 const {
   User, Party, Vehicle, Trip, Contract, Payment, Expense, InventoryItem, InventoryTxn, Purchase, DieselEntry, Maintenance, Document, Employee,
 } = require("../models");
+const { mileageReport } = require("./mileage");
 const { contractAmount, contractSegments, dayNum, todayNum, round2, toNumber, idOf, DAY_MS } = require("./common");
 
 const inRange = (field, from, to) => ({ [field]: { $gte: new Date(from), $lte: new Date(to) } });
@@ -307,13 +308,18 @@ const maintenanceStatus = async (userId) => {
 };
 
 const alerts = async (userId) => {
-  const [docs, tasks, items, user, employees] = await Promise.all([
+  const [docs, tasks, items, user, employees, mileage] = await Promise.all([
     documentStatus(userId),
     maintenanceStatus(userId),
     InventoryItem.find({ userId, minStock: { $gt: 0 } }).lean(),
     User.findById(userId).select("documentReminderDays").lean(),
     Employee.find({ userId, isActive: true, licenseExpiry: { $ne: null } }).populate("vehicleId", "vehicleNo").lean(),
+    // Mileage over the last 3 months, against each vehicle's expected mileage
+    mileageReport(userId, { months: 3 }),
   ]);
+  const lowMileage = mileage.vehicles
+    .filter((row) => row.state === "low")
+    .map(({ entries, low, high, ...row }) => row);
   const warnDays = toNumber(user?.documentReminderDays, 15);
   // Driving licences of working staff, on the same warning days as vehicle documents
   const licenses = employees
@@ -336,7 +342,8 @@ const alerts = async (userId) => {
     maintenance,
     lowStock,
     licenses,
-    count: documents.length + maintenance.length + lowStock.length + licenses.length,
+    lowMileage,
+    count: documents.length + maintenance.length + lowStock.length + licenses.length + lowMileage.length,
     urgent: documents.filter((doc) => doc.status === "expired").length
       + licenses.filter((employee) => employee.status === "expired").length
       + maintenance.filter((task) => task.status === "overdue").length,

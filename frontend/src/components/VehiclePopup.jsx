@@ -141,6 +141,9 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
             <Field label="Capacity">
               <MoneyInput prefix="" suffix="ton" value={form.capacityTons} onChange={(value) => set('capacityTons', value)} />
             </Field>
+            <Field label="Expected Mileage" hint={unit === 'hrs' ? 'Diesel per hour it should use. Flagged when it uses over 10% more.' : 'Km per litre it should give. Flagged when over 10% lower.'}>
+              <MoneyInput prefix="" suffix={unit === 'hrs' ? 'ltr/hr' : 'km/l'} value={form.expectedMileage || ''} onChange={(value) => set('expectedMileage', value)} placeholder="Optional" />
+            </Field>
             <Field label="Driver Name" htmlFor="veh-driver">
               <input id="veh-driver" className="input" value={form.driverName} onChange={(event) => set('driverName', event.target.value)} />
             </Field>
