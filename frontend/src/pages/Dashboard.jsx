@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, ChevronRight, Fuel, Gauge, HandCoins, IndianRupee, PackageMinus, Route, Send, ShoppingCart, TrendingUp, Truck, Wallet,
+  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, CalendarPlus, ChevronRight, FileBadge, Fuel, Gauge, HandCoins, Handshake, IndianRupee, LayoutGrid,
+  PackageMinus, Route, Send, ShoppingCart, TrendingUp, Truck, UserPlus, Wallet, WalletCards, Wrench,
 } from 'lucide-react';
 import useFetch from '../utils/useFetch';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatRupees, formatShortRupees, todayInput } from '../utils/format';
+import { currentMonthInput, formatDate, formatRupees, formatShortRupees, todayInput } from '../utils/format';
 import { getDocTypeLabel } from '../utils/constants';
 import StatCard from '../components/StatCard';
 import TripPopup from '../components/TripPopup';
@@ -15,6 +16,13 @@ import PaymentPopup from '../components/PaymentPopup';
 import PurchasePopup from '../components/PurchasePopup';
 import DieselPopup from '../components/DieselPopup';
 import { TxnPopup } from '../components/InventoryPopups';
+import MoreEntriesPopup from '../components/MoreEntriesPopup';
+import ContractPopup from '../components/ContractPopup';
+import DocumentPopup from '../components/DocumentPopup';
+import { ScheduleForm } from '../components/MaintenancePopups';
+import EntryPopup from '../components/payroll/EntryPopup';
+import VehiclePopup from '../components/VehiclePopup';
+import PartyPopup from '../components/PartyPopup';
 import { ReadingPopup } from './MeterReadings';
 import { EmptyState, Loading, Page, PageHeader } from '../components/ui';
 
@@ -26,8 +34,19 @@ const QUICK_ENTRIES = [
   { key: 'received', label: 'Money Received', icon: HandCoins, tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   { key: 'paid', label: 'Money Paid', icon: Send, tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
   { key: 'reading', label: 'Meter Reading', icon: Gauge, tone: 'bg-slate-100 text-slate-700 ring-slate-200' },
-  { key: 'purchase', label: 'Add Purchase', icon: ShoppingCart, tone: 'bg-violet-50 text-violet-700 ring-violet-100' },
-  { key: 'issue', label: 'Issue Stock', icon: PackageMinus, tone: 'bg-indigo-50 text-indigo-700 ring-indigo-100' },
+];
+
+// Less frequent entries, in the popup behind the "More Entries" button
+const MORE_ENTRIES = [
+  { key: 'purchase', label: 'Add Purchase', hint: 'Tyres, oil, spares bought into stock', icon: ShoppingCart, tone: 'from-violet-400 to-fuchsia-600' },
+  { key: 'issue', label: 'Issue Stock', hint: 'Fit / fill stock items in a vehicle', icon: PackageMinus, tone: 'from-indigo-400 to-blue-600' },
+  { key: 'advance', label: 'Driver Advance / Salary', hint: 'Advance, salary or bata to staff', icon: WalletCards, tone: 'from-emerald-400 to-teal-600' },
+  { key: 'hireIn', label: 'Hire Vehicle Monthly', hint: "Take a party's vehicle on monthly rent", icon: CalendarPlus, tone: 'from-amber-400 to-orange-500' },
+  { key: 'giveOut', label: 'Give Vehicle on Rent', hint: 'Rent your vehicle to a party monthly', icon: Handshake, tone: 'from-sky-400 to-blue-600' },
+  { key: 'document', label: 'Vehicle Document', hint: 'Insurance, tax, fitness, PUC, permit', icon: FileBadge, tone: 'from-rose-400 to-pink-600' },
+  { key: 'service', label: 'Service Schedule', hint: 'Oil change, service due by km or days', icon: Wrench, tone: 'from-slate-500 to-slate-700' },
+  { key: 'vehicle', label: 'Add Vehicle', hint: 'Your own or a hired vehicle', icon: Truck, tone: 'from-blue-500 to-indigo-600' },
+  { key: 'party', label: 'Add Party', hint: 'Customer, owner, supplier, pump', icon: UserPlus, tone: 'from-teal-400 to-emerald-600' },
 ];
 
 const greeting = () => {
@@ -42,8 +61,11 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [popup, setPopup] = useState('');
   const { data, loading, reload } = useFetch('/dashboard');
+  const [showMoreEntries, setShowMoreEntries] = useState(false);
   // Stock items, fetched only while a purchase or an issue is being added
   const { data: stockItems, reload: reloadStockItems } = useFetch(popup === 'purchase' || popup === 'issue' ? '/inventory/items' : '', {}, []);
+  // Working staff, fetched only while an advance / salary is being given
+  const { data: employees } = useFetch(popup === 'advance' ? '/payroll/employees' : '', {}, []);
 
   if (loading && !data) return <Page><Loading /></Page>;
   if (!data) return <Page><EmptyState title="Could not load the dashboard" hint="Check that the backend is running." /></Page>;
@@ -87,15 +109,26 @@ export default function Dashboard() {
       </section>
 
       <section className="panel @container bg-gradient-to-r from-[#1f2a3c] via-[#27374f] to-[#314866] ring-[#1f2a3c]">
-        <div className="panel-header border-white/15 py-2.5">
-          <h2 className="text-sm font-bold text-white">Quick Entry</h2>
-          <p className="text-xs text-slate-300">Add today's entries without leaving the dashboard</p>
+        <div className="panel-header flex flex-wrap items-center justify-between gap-2 border-white/15 py-2.5">
+          <div>
+            <h2 className="text-sm font-bold text-white">Quick Entry</h2>
+            <p className="text-xs text-slate-300">Add today's entries without leaving the dashboard</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMoreEntries(true)}
+            aria-haspopup="dialog"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white shadow-sm ring-1 ring-inset ring-white/35 transition hover:bg-white/25 md:text-sm"
+          >
+            <LayoutGrid size={16} />
+            More Entries
+          </button>
         </div>
         {/*
-          Columns follow the panel's own width. Phones and tablets: four tiles a row, the icon above the label
-          (beside it once there is room). Wide screens: all eight in one row.
+          Columns follow the panel's own width. Phones: three tiles a row, the icon above the label
+          (beside it once there is room). Wide screens: all six in one row.
         */}
-        <div className="grid grid-cols-4 gap-1.5 p-2 @xl:gap-2 @xl:p-2.5 @5xl:grid-cols-8 md:gap-2.5 md:p-3">
+        <div className="grid grid-cols-3 gap-1.5 p-2 @xl:gap-2 @xl:p-2.5 @5xl:grid-cols-6 md:gap-2.5 md:p-3">
           {QUICK_ENTRIES.map(({ key, label, icon: Icon, tone }) => (
             <button
               key={key}
@@ -181,6 +214,30 @@ export default function Dashboard() {
       {popup === 'reading' && <ReadingPopup onClose={() => setPopup('')} onSaved={reload} />}
       {popup === 'purchase' && <PurchasePopup items={stockItems || []} onClose={() => setPopup('')} onSaved={reload} onItemAdded={reloadStockItems} />}
       {popup === 'issue' && <TxnPopup items={stockItems || []} preset={{ type: 'issue' }} onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'advance' && employees && (
+        <EntryPopup
+          employees={employees.filter((employee) => employee.isActive)}
+          month={currentMonthInput()}
+          preset={{ type: 'advance' }}
+          onClose={() => setPopup('')}
+          onSaved={reload}
+        />
+      )}
+      {(popup === 'hireIn' || popup === 'giveOut') && <ContractPopup direction={popup === 'hireIn' ? 'hire_in' : 'give_out'} onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'document' && <DocumentPopup onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'service' && <ScheduleForm onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'vehicle' && <VehiclePopup onClose={() => setPopup('')} onSaved={reload} />}
+      {popup === 'party' && <PartyPopup onClose={() => setPopup('')} onSaved={reload} />}
+      {showMoreEntries && (
+        <MoreEntriesPopup
+          entries={MORE_ENTRIES}
+          onClose={() => setShowMoreEntries(false)}
+          onPick={(entry) => {
+            setShowMoreEntries(false);
+            setPopup(entry.key);
+          }}
+        />
+      )}
     </Page>
   );
 }

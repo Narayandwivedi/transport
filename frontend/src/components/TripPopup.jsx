@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Box, Gauge, Package, PackageCheck, Route, Trash2, Truck, Weight } from 'lucide-react';
+import { ArrowRight, Package, PackageCheck, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
@@ -15,11 +15,11 @@ import { Field, MoneyInput } from './ui';
 
 // The five ways to charge, as shown in the picker (per trip is the fixed amount)
 const CHARGE_TYPES = [
-  { value: 'per_trip', label: 'Per Trip (Fixed)', icon: Route },
-  { value: 'per_km', label: 'Per KM', icon: Gauge },
-  { value: 'per_ton', label: 'Per Ton', icon: Weight },
-  { value: 'per_ton_km', label: 'Per Ton per KM', icon: Truck },
-  { value: 'per_cft', label: 'Per Cubic Feet', icon: Box },
+  { value: 'per_trip', label: 'Per Trip (Fixed)' },
+  { value: 'per_km', label: 'Per KM' },
+  { value: 'per_ton', label: 'Per Ton' },
+  { value: 'per_ton_km', label: 'Per Ton per KM' },
+  { value: 'per_cft', label: 'Per Cubic Feet' },
 ];
 
 // What the quantity box asks for under each way of charging (per ton per km: the tons; the km has its own box)
@@ -324,23 +324,6 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
         {/* 2. Route and how the party is charged */}
         <FormSection number={2} title="Route & Charge" tone="sky">
-          <div className="grid grid-cols-2 gap-1 rounded-xl sm:grid-cols-3 md:grid-cols-5 bg-white/70 p-1 ring-1 ring-sky-200">
-            {CHARGE_TYPES.map(({ value, label, icon: Icon }) => {
-              const active = basis === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => changeBasis(value)}
-                  aria-pressed={active}
-                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-semibold transition md:text-sm ${active ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-                >
-                  <Icon size={16} className="hidden sm:block" /> {label}
-                </button>
-              );
-            })}
-          </div>
-
           {routes.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium text-slate-500">Saved:</span>
@@ -368,8 +351,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             </Field>
           </div>
 
-          <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-1 sm:grid-cols-3' : askQuantity ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {/* Rate first, then how much */}
+          <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-2 sm:grid-cols-4' : askQuantity ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'}`}>
+            {/* How the party is charged, then the rate, then how much */}
+            <Field label="Charge By" required htmlFor="trip-basis">
+              <select id="trip-basis" className="input" value={basis} onChange={(event) => changeBasis(event.target.value)} required>
+                {CHARGE_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </Field>
             <Field label={basis === 'per_trip' ? 'Trip Amount' : basis === 'per_ton_km' ? 'Rate per Ton per KM' : basis === 'per_cft' ? 'Rate per Cubic Foot' : `Rate per ${unit}`} required>
               <MoneyInput value={form.rate} onChange={(value) => set('rate', value)} suffix={unit ? `/${unit}` : ''} required />
             </Field>
