@@ -37,6 +37,10 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
   const unit = meterUnitOf(form);
 
   const handleSubmit = async () => {
+    if (!vehicle && String(form.openingKm).trim() === '') {
+      toast.error(`Enter the opening ${unit === 'hrs' ? 'hour meter' : 'odometer'} reading`);
+      return;
+    }
     setSaving(true);
     const payload = { ...form };
     delete payload.openingKm;
@@ -74,7 +78,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
               </select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:gap-4">
+          <div className={`grid grid-cols-2 gap-3 md:gap-4 ${vehicle ? '' : 'md:grid-cols-3'}`}>
             <Field label="Vehicle Is" required htmlFor="veh-own" hint={OWNERSHIP.find((option) => option.value === form.ownership)?.hint}>
               <select id="veh-own" className="input" value={form.ownership} onChange={(event) => set('ownership', event.target.value)}>
                 {OWNERSHIP.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -85,6 +89,12 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
                 {METER_UNITS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </Field>
+            {/* Where the meter stands today; saved as the vehicle's first meter reading */}
+            {!vehicle && (
+              <Field label={unit === 'hrs' ? 'Opening Hour Meter' : 'Opening Odometer'} required hint="Meter reading today, saved as the first reading">
+                <MoneyInput prefix="" suffix={unit} value={form.openingKm} onChange={(value) => set('openingKm', value)} placeholder={unit === 'hrs' ? 'Hours on the meter' : 'Km on the odometer'} required />
+              </Field>
+            )}
           </div>
         </FormSection>
 
@@ -137,17 +147,13 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
             <Field label="Driver Mobile" htmlFor="veh-driver-mobile">
               <input id="veh-driver-mobile" className="input" value={form.driverMobile} onChange={(event) => set('driverMobile', event.target.value)} inputMode="tel" />
             </Field>
-            {vehicle ? (
+            {vehicle && (
               <Field label="Status">
                 <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                   <option value="sold">Sold / Returned</option>
                 </select>
-              </Field>
-            ) : (
-              <Field label={unit === 'hrs' ? 'Current Hour Meter' : 'Current Odometer'} hint="Saved as the first meter reading">
-                <MoneyInput prefix="" suffix={unit} value={form.openingKm} onChange={(value) => set('openingKm', value)} />
               </Field>
             )}
           </div>
