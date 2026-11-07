@@ -14,7 +14,6 @@ const PAY_MODES = [
   { value: 'cash', label: 'Cash' },
   { value: 'upi', label: 'UPI' },
   { value: 'bank', label: 'Bank' },
-  { value: 'credit', label: 'Credit (pay pump later)' },
 ];
 
 // How many of the vehicle's latest trips the dropdown offers
@@ -27,7 +26,7 @@ const trim = (value) => String(Math.round(value * 100) / 100);
 
 /**
  * Diesel bought at a petrol pump straight into a vehicle. Saved as the vehicle's diesel expense;
- * on credit, the amount is owed to the pump and shows in its ledger.
+ * what is not paid now is owed to the pump and shows in its ledger (nothing paid = on credit).
  * Type the litres and rate (amount is worked out), or the amount and rate (litres are worked out).
  */
 export default function DieselPopup({ entry = null, preset = {}, onClose, onSaved }) {
@@ -41,11 +40,13 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     rate: String(entry.rate || ''),
     amount: String(entry.amount || ''),
     meterReading: entry.meterReading ? String(entry.meterReading) : '',
-    mode: entry.mode || 'cash',
+    // Entries saved before "paid now" existed: credit paid nothing, the rest were paid in full
+    paidAmount: String(entry.paidAmount ?? (entry.mode === 'credit' ? 0 : entry.amount) ?? ''),
+    mode: entry.mode && entry.mode !== 'credit' ? entry.mode : 'cash',
     billNo: entry.billNo || '',
     notes: entry.notes || '',
   } : {
-    date: todayInput(), vehicleId: '', partyId: '', tripId: '', litres: '', rate: '', amount: '', meterReading: '', mode: 'cash', billNo: '', notes: '', ...preset,
+    date: todayInput(), vehicleId: '', partyId: '', tripId: '', litres: '', rate: '', amount: '', meterReading: '', paidAmount: '', mode: 'cash', billNo: '', notes: '', ...preset,
   }));
   const [addingPump, setAddingPump] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -93,11 +94,19 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     ...prev, amount, litres: toNumber(prev.rate) > 0 && toNumber(amount) > 0 ? trim(toNumber(amount) / toNumber(prev.rate)) : prev.litres,
   }));
 
+  // Paid now: what was typed; without a saved pump it is all paid on the spot
+  const total = toNumber(form.amount);
+  const hasPump = Boolean(form.partyId);
+  const paid = hasPump ? toNumber(form.paidAmount) : total;
+  const balanceDue = Math.max(0, total - paid);
+  let paymentLabel = 'On credit';
+  if (paid > 0) paymentLabel = paid >= total ? 'Fully paid' : 'Part paid';
+
   const handleSubmit = async () => {
-    if (form.mode === 'credit' && !form.partyId) return toast.error('Pick the petrol pump to fill on credit');
+    if (paid > total) return toast.error('Paid cannot be more than the amount');
     setSaving(true);
     try {
-      const payload = { ...form };
+      const payload = { ...form, paidAmount: paid };
       if (entry) await apiClient.put(`/diesel-entries/${entry._id}`, payload);
       else await apiClient.post('/diesel-entries', payload);
       toast.success(entry ? 'Diesel entry updated' : 'Diesel purchase saved');
@@ -123,7 +132,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
         footerExtra={toNumber(form.amount) > 0 && (
           <span className="text-slate-600">
             Amount <b className="text-slate-900">{formatRupees(form.amount)}</b>
-            {form.mode === 'credit' && <span className="badge-orange ml-1.5">On credit</span>}
+            {balanceDue > 0 && <span className="badge-orange ml-1.5">Due {formatRupees(balanceDue)}</span>}
           </span>
         )}
       >
@@ -173,15 +182,43 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
             <Field label="Meter Reading" hint="At the pump. Optional, updates the vehicle's meter.">
               <MoneyInput prefix="" suffix={meterUnitOf(vehicle)} value={form.meterReading} onChange={(value) => set('meterReading', value)} />
             </Field>
-            <Field label="Paid By" required>
-              <select className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
-                {PAY_MODES.map((option) => <option key={option.value} value={option.value} disabled={option.value === 'credit' && !form.partyId}>{option.label}</option>)}
-              </select>
-            </Field>
           </FieldGrid>
         </FormSection>
 
-        <FormSection number={4} title="Notes" tone="slate">
+        {/* Total, then what is paid now; nothing paid = on credit at the pump */}
+        <FormSection number={4} title="Payment" tone="indigo" hint={hasPump ? "What is not paid now stays due in the pump's ledger." : 'No pump picked: paid in full on the spot. Pick the pump to fill on credit.'}>
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 ${paid > 0 ? 'md:grid-cols-3' : ''}`}>
+            <Field label="Total Amount">
+              <div className="input flex items-center bg-slate-50 font-bold text-slate-900">{formatRupees(total)}</div>
+            </Field>
+            <Field label="Paid Now" htmlFor="dsl-paid" action={hasPump && total > 0 && <AddLink onClick={() => set('paidAmount', String(total))}>Full amount</AddLink>}>
+              {hasPump ? (
+                <MoneyInput id="dsl-paid" value={form.paidAmount} onChange={(value) => set('paidAmount', value)} placeholder="0 (credit)" />
+              ) : (
+                <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">{formatRupees(total)}</div>
+              )}
+            </Field>
+            {/* How it was paid only matters when something was paid */}
+            {paid > 0 && (
+              <Field label="Paid By" htmlFor="dsl-mode">
+                <select id="dsl-mode" className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
+                  {PAY_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </Field>
+            )}
+          </div>
+          <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 ring-1 ${balanceDue > 0 ? 'bg-amber-50 ring-amber-200' : 'bg-emerald-50 ring-emerald-200'}`}>
+            <span className={`text-sm font-semibold ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+              {paymentLabel}
+              {paid > total && <span className="ml-2 text-rose-700">more than the amount</span>}
+            </span>
+            <span className={`text-sm font-semibold ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+              Due to pump: <span className="text-lg font-bold">{formatRupees(balanceDue)}</span>
+            </span>
+          </div>
+        </FormSection>
+
+        <FormSection number={5} title="Notes" tone="slate">
           <textarea rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Optional" />
         </FormSection>
       </FormPopup>

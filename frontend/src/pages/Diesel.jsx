@@ -12,7 +12,10 @@ import DieselPopup from '../components/DieselPopup';
 import { VehicleSelect } from '../components/Pickers';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
 
-const MODE_LABEL = { cash: 'Cash', upi: 'UPI', bank: 'Bank', credit: 'Credit' };
+const MODE_LABEL = { cash: 'Cash', upi: 'UPI', bank: 'Bank' };
+
+// Paid at the pump: entries saved before "paid now" existed count credit as nothing paid, the rest as all paid
+const paidOf = (entry) => entry.paidAmount ?? (entry.mode === 'credit' ? 0 : entry.amount);
 
 /** Diesel filled at petrol pumps, by vehicle and pump. Stocked diesel goes through Purchases and Issue Stock. */
 export default function Diesel() {
@@ -25,7 +28,7 @@ export default function Diesel() {
   const list = entries || [];
   const litres = list.reduce((total, row) => total + row.litres, 0);
   const amount = list.reduce((total, row) => total + row.amount, 0);
-  const onCredit = list.filter((row) => row.mode === 'credit').reduce((total, row) => total + row.amount, 0);
+  const onCredit = list.reduce((total, row) => total + Math.max(0, row.amount - paidOf(row)), 0);
 
   const handleDelete = async (entry) => {
     if (!window.confirm(`Delete diesel entry ${entry.entryNo}? Its vehicle expense goes too.`)) return;
@@ -92,7 +95,14 @@ export default function Diesel() {
                     <td className={`${TD} whitespace-nowrap text-right`}>{formatNumber(entry.litres)} ltr × {formatRupees(entry.rate)}</td>
                     <td className={`${TD} text-right font-semibold text-rose-700`}>{formatRupees(entry.amount)}</td>
                     <td className={`${TD} whitespace-nowrap text-right text-slate-500`}>{entry.meterReading > 0 ? formatMeter(entry.meterReading, entry.vehicleId) : '—'}</td>
-                    <td className={TD}><span className={entry.mode === 'credit' ? 'badge-orange' : 'badge-green'}>{MODE_LABEL[entry.mode] || entry.mode}</span></td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      {paidOf(entry) <= 0 ? <span className="badge-orange">Credit</span> : (
+                        <span className={paidOf(entry) >= entry.amount ? 'badge-green' : 'badge-orange'}>
+                          {paidOf(entry) >= entry.amount ? 'Paid' : 'Partial'} · {MODE_LABEL[entry.mode] || 'Cash'}
+                        </span>
+                      )}
+                      {paidOf(entry) > 0 && paidOf(entry) < entry.amount && <p className="mt-0.5 text-[11px] text-slate-500">paid {formatRupees(paidOf(entry))} · due {formatRupees(entry.amount - paidOf(entry))}</p>}
+                    </td>
                     <td className={TD} onClick={(event) => event.stopPropagation()}>
                       <div className="flex justify-end">
                         <RowAction title="Edit" icon={Pencil} onClick={() => setEditing(entry)} />

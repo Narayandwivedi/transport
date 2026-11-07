@@ -142,7 +142,7 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     Payment.find({ userId, partyId }).lean(),
     InventoryTxn.find({ userId, partyId, type: "purchase", paidNow: false }).populate("itemId", "name unit").lean(),
     Purchase.find({ userId, partyId }).lean(),
-    DieselEntry.find({ userId, partyId, mode: "credit" }).populate("vehicleId", "vehicleNo").lean(),
+    DieselEntry.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
   ]);
 
   const rows = [];
@@ -226,15 +226,28 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     }
   });
 
-  // Diesel filled on credit at this pump
-  dieselFills.forEach((fill) => rows.push({
-    date: fill.date,
-    kind: "Diesel",
-    ref: [fill.entryNo, fill.billNo ? `Bill ${fill.billNo}` : ""].filter(Boolean).join(" · "),
-    details: `${fill.vehicleId?.vehicleNo || ""} · ${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`.trim(),
-    debit: 0,
-    credit: toNumber(fill.amount),
-  }));
+  // Diesel filled at this pump, and what was paid on the spot
+  dieselFills.forEach((fill) => {
+    const ref = [fill.entryNo, fill.billNo ? `Bill ${fill.billNo}` : ""].filter(Boolean).join(" · ");
+    rows.push({
+      date: fill.date,
+      kind: "Diesel",
+      ref,
+      details: `${fill.vehicleId?.vehicleNo || ""} · ${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`.trim(),
+      debit: 0,
+      credit: toNumber(fill.amount),
+    });
+    if (toNumber(fill.paidAmount) > 0) {
+      rows.push({
+        date: fill.date,
+        kind: "Paid",
+        ref,
+        details: `Paid on diesel fill (${String(fill.mode || "cash").toUpperCase()})`,
+        debit: toNumber(fill.paidAmount),
+        credit: 0,
+      });
+    }
+  });
 
   rows.sort((a, b) => new Date(a.date) - new Date(b.date));
   let balance = toNumber(party.openingBalance);

@@ -58,6 +58,10 @@ const start = async () => {
   console.log("MongoDB connected");
   // Parties are only customers or suppliers now: older vehicle owners, pumps and others become suppliers
   await mongoose.connection.collection("parties").updateMany({ type: { $nin: ["customer", "supplier"] } }, { $set: { type: "supplier" } });
+  // Diesel fills saved before "paid now" existed: credit ones paid nothing, the rest were paid in full
+  const diesel = mongoose.connection.collection("dieselentries");
+  await diesel.updateMany({ paidAmount: { $exists: false }, mode: "credit" }, { $set: { paidAmount: 0, paymentType: "credit", mode: "cash" } });
+  await diesel.updateMany({ paidAmount: { $exists: false } }, [{ $set: { paidAmount: "$amount", paymentType: "full" } }]);
   app.listen(PORT, () => console.log(`TransportBook backend on http://localhost:${PORT}`));
 };
 

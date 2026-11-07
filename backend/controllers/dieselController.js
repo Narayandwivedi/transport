@@ -16,7 +16,8 @@ const syncDieselExpense = async (userId, entry) => {
     amount: toNumber(entry.amount),
     odometer: toNumber(entry.meterReading),
     paidTo: pump?.name || "Petrol pump",
-    mode: entry.mode,
+    // Nothing paid at the pump: the cost is on credit
+    mode: toNumber(entry.paidAmount) > 0 ? entry.mode : "credit",
     notes: [`${entry.entryNo} · ${toNumber(entry.litres)} ltr × ₹${toNumber(entry.rate)}`, trip ? `Trip ${trip.tripNo}${route ? ` (${route})` : ""}` : "", entry.billNo ? `Bill ${entry.billNo}` : "", entry.notes].filter(Boolean).join(" · "),
     source: "diesel",
     dieselEntryId: entry._id,
@@ -51,7 +52,14 @@ const crudOptions = {
     data.litres = litres;
     data.rate = rate;
     data.amount = amount;
-    if (data.mode === "credit" && !data.partyId) throw refuse("Pick the petrol pump to fill on credit");
+    // Paid now: typed, or all of it when not given. Without a saved pump nothing can stay owed.
+    const paidGiven = data.paidAmount !== undefined && data.paidAmount !== null && String(data.paidAmount).trim() !== "";
+    const paid = paidGiven ? round2(Math.max(0, toNumber(data.paidAmount))) : amount;
+    if (paid > amount) throw refuse(`Paid cannot be more than the amount (₹${amount})`);
+    if (paid < amount && !data.partyId) throw refuse("Pick the petrol pump to keep the balance due");
+    data.paidAmount = paid;
+    data.paymentType = paid <= 0 ? "credit" : paid >= amount ? "full" : "partial";
+    if (!["cash", "upi", "bank"].includes(data.mode)) data.mode = "cash";
     return data;
   },
   afterSave: async (req, doc, old) => {

@@ -2,7 +2,7 @@ const { Schema, ObjectId, owner, ref, money, text, makeModel } = require("./sche
 
 /**
  * Diesel bought at a petrol pump straight into a vehicle (it never goes into stock).
- * Keeps one linked expense on the vehicle; on credit, the amount is owed to the pump.
+ * Keeps one linked expense on the vehicle; what is not paid at the pump is owed to it (its ledger).
  */
 const dieselEntrySchema = new Schema(
   {
@@ -19,7 +19,10 @@ const dieselEntrySchema = new Schema(
     amount: money,
     // Vehicle's km / hour meter at the pump (optional)
     meterReading: money,
-    // credit: owed to the pump, shows in its ledger
+    // Paid at the pump now: nothing (credit), part (partial) or all (full). The rest is owed to the pump.
+    paidAmount: money,
+    paymentType: { type: String, enum: ["credit", "partial", "full"], default: "full" },
+    // How the paid part was paid ("credit" only on entries saved before paidAmount existed)
     mode: { type: String, enum: ["cash", "upi", "bank", "credit"], default: "cash" },
     billNo: text,
     notes: text,
