@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
 import useMasters from '../utils/useMasters';
-import { formatDate, idOf, toDayInput, todayInput } from '../utils/format';
+import { formatDate, formatNumber, idOf, toDayInput, todayInput } from '../utils/format';
 import { closingOf, formatMeter, meterUnitOf, openingOf, runOf } from '../utils/meter';
 import DieselPopup from '../components/DieselPopup';
 import FormPopup from '../components/FormPopup';
@@ -292,7 +292,7 @@ export default function MeterReadings() {
                         <td className={`${TD} whitespace-nowrap`}>{formatDate(reading.date)}</td>
                         <td className={`${TD} font-mono font-semibold`}>{reading.vehicleId?.vehicleNo}</td>
                         <td className={`${TD} whitespace-nowrap`}>
-                          <span className="badge-orange inline-flex items-center gap-1"><Fuel size={12} /> Diesel fill</span>
+                          <span className="badge-orange inline-flex items-center gap-1"><Fuel size={12} /> Diesel fill ({formatNumber(reading.litres)} L)</span>
                           <p className="mt-0.5 font-mono text-[11px] text-slate-500">{reading.entryNo}</p>
                         </td>
                         <td className={`${TD} whitespace-nowrap font-semibold`} colSpan={2}>
