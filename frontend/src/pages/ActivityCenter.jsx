@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Check, CheckCheck, Clock, Eye, History, ListChecks, RefreshCw, UserRound, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, Clock, Eye, History, ListChecks, Pencil, RefreshCw, UserRound, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
@@ -8,6 +8,11 @@ import { formatDate, formatRupees } from '../utils/format';
 import { entityLook, groupByDay, timeOf } from '../utils/staff';
 import Segmented from '../components/Segmented';
 import EntryDetailPopup from '../components/EntryDetailPopup';
+import TripPopup from '../components/TripPopup';
+import DieselPopup from '../components/DieselPopup';
+import PaymentPopup from '../components/PaymentPopup';
+import ExpensePopup from '../components/ExpensePopup';
+import { ReadingPopup } from './MeterReadings';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader } from '../components/ui';
 
 const PERIODS = [
@@ -329,12 +334,92 @@ function Waiting({ onChanged }) {
   );
 }
 
+// Lines that have their own column in the table, so the Details column leaves them out
+const TABLE_OWN = ['Date', 'Vehicle', 'Party', 'Transport', 'Paid Now', 'Balance Due', 'Due to Pump'];
+const lineOf = (details, ...labels) => details.find((row) => labels.includes(row.label))?.value || '';
+
+/** All Entries on wide screens: one row per entry, grouped by the day it was added. */
+function EntriesTable({ groups, onView, onEdit }) {
+  const th = 'px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500';
+  return (
+    <div className="hidden overflow-x-auto md:block">
+      <table className="w-full text-sm">
+        <thead className="border-b border-slate-200 bg-slate-50">
+          <tr>
+            <th className={`${th} pl-4`}>Entry</th>
+            <th className={th}>Date / Time</th>
+            <th className={th}>Vehicle / Party</th>
+            <th className={th}>Details</th>
+            <th className={th}>Added by</th>
+            <th className={`${th} text-right`}>Total / Paid</th>
+            <th className={`${th} text-right`}>Balance</th>
+            <th className={`${th} pr-4`}><span className="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        {groups.map((group) => (
+          <tbody key={group.label} className="divide-y divide-slate-100">
+            <tr className="bg-slate-50/70">
+              <td colSpan={8} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">{group.label}</td>
+            </tr>
+            {group.rows.map((row) => {
+              const details = row.details || [];
+              const { icon: Icon, tone } = entityLook(row.entity, row.title);
+              const paid = paidOf(details);
+              const due = details.find((line) => ['Balance Due', 'Due to Pump'].includes(line.label));
+              const info = basicLines(row.entity, details, row.amount).filter((line) => !TABLE_OWN.includes(line.label)).map((line) => line.value).join(' · ');
+              return (
+                <tr key={`${row.entity}-${row.id}`} className="align-middle hover:bg-slate-50/80">
+                  <td className="py-2.5 pr-3 pl-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${tone}`}><Icon size={14} /></span>
+                      <span className="whitespace-nowrap font-semibold text-slate-900">{row.title}</span>
+                      {row.edited && <span className="badge-gray">Edited</span>}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 leading-tight">
+                    <span className="block text-slate-800">{lineOf(details, 'Date') || (row.date ? formatDate(row.date) : '—')}</span>
+                    <span className="block text-[11px] text-slate-400">{timeOf(row.createdAt)}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800">{lineOf(details, 'Vehicle', 'Party') || '—'}</td>
+                  <td className="max-w-[16rem] truncate px-3 py-2.5 text-slate-600" title={info || row.detail}>{info || row.detail || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-xs text-slate-500">
+                    <span className={`font-semibold ${row.by?.kind === 'staff' ? 'text-blue-700' : 'text-slate-700'}`}>{row.by?.kind === 'staff' ? row.by.name : 'Owner'}</span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right leading-tight">
+                    <span className="block font-bold text-slate-900">{row.amount > 0 ? formatRupees(row.amount) : '—'}</span>
+                    {paid !== null && (paid
+                      ? <span className="block text-[11px] font-semibold text-emerald-700">Paid {paid}</span>
+                      : <span className="block text-[11px] font-semibold text-amber-700">Credit</span>)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                    {!due ? <span className="text-slate-300">—</span> : isDue(due)
+                      ? <span className="font-semibold text-rose-700">{due.value}</span>
+                      : <span className="text-slate-400">₹0</span>}
+                  </td>
+                  <td className="py-2.5 pr-4 pl-3">
+                    <div className="flex justify-end gap-1.5">
+                      <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50" onClick={() => onView(row)}><Eye size={13} /> View</button>
+                      {row.doc && <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-100" onClick={() => onEdit(row)}><Pencil size={13} /> Edit</button>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
 /** Every entry saved in the period, with who added it. */
 function AllEntries() {
   const [days, setDays] = useState(1);
   const [by, setBy] = useState('');
   const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
   const { data, loading, error, reload } = useFetch('/activity/feed', { days, by }, null);
+  const closeEdit = () => setEditing(null);
   const groups = groupByDay(data?.rows || []);
 
   return (
@@ -356,7 +441,10 @@ function AllEntries() {
       <ErrorBox message={error} />
       {loading && !data ? <Loading /> : groups.length === 0 ? (
         <EmptyState icon={History} title="No entries in this period" hint="Trips, diesel, payments, meter readings and expenses show here as they are added." />
-      ) : groups.map((group) => (
+      ) : (
+        <>
+          <EntriesTable groups={groups} onView={setViewing} onEdit={setEditing} />
+          <div className="md:hidden">{groups.map((group) => (
         <div key={group.label}>
           <p className="bg-slate-50 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">{group.label}</p>
           <div className="space-y-3 p-3 sm:p-4">
@@ -372,13 +460,21 @@ function AllEntries() {
                   amount={row.amount}
                   amountLabel={row.entity === 'trip' ? 'Total Bill' : 'Amount'}
                   paid={paidOf(details)}
-                  action={<span className="hidden sm:inline"><DetailsLink onClick={() => setViewing(row)} /></span>}
+                  action={(
+                    <span className="hidden items-center gap-3 sm:inline-flex">
+                      <DetailsLink onClick={() => setViewing(row)} />
+                      {row.doc && <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900" onClick={() => setEditing(row)}><Pencil size={14} /> Edit</button>}
+                    </span>
+                  )}
                 >
                   {details.length ? (
                     <>
                       <FactGrid rows={basicLines(row.entity, details, row.amount)} />
                       <MobileFacts rows={basicLines(row.entity, details, row.amount)}>
-                        <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 active:bg-blue-50" onClick={() => setViewing(row)}><Eye size={13} /> View</button>
+                        <div className="flex shrink-0 gap-1.5">
+                          <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 active:bg-blue-50" onClick={() => setViewing(row)}><Eye size={13} /> View</button>
+                          {row.doc && <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300 active:bg-slate-100" onClick={() => setEditing(row)}><Pencil size={13} /> Edit</button>}
+                        </div>
                       </MobileFacts>
                     </>
                   ) : (
@@ -389,8 +485,16 @@ function AllEntries() {
             })}
           </div>
         </div>
-      ))}
+      ))}</div>
+        </>
+      )}
       {viewing && <EntryDetailPopup entity={viewing.entity} id={viewing.id} onClose={() => setViewing(null)} />}
+      {/* The same edit forms as the entry pages */}
+      {editing?.entity === 'trip' && <TripPopup trip={editing.doc} onClose={closeEdit} onSaved={reload} />}
+      {editing?.entity === 'diesel' && <DieselPopup entry={editing.doc} onClose={closeEdit} onSaved={reload} />}
+      {editing?.entity === 'payment' && <PaymentPopup payment={editing.doc} onClose={closeEdit} onSaved={reload} />}
+      {editing?.entity === 'expense' && <ExpensePopup expense={editing.doc} onClose={closeEdit} onSaved={reload} />}
+      {editing?.entity === 'reading' && <ReadingPopup reading={editing.doc} onClose={closeEdit} onSaved={reload} />}
     </section>
   );
 }

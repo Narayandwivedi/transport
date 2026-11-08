@@ -100,8 +100,9 @@ const feed = async (req, res) => {
     from: period.from,
     to: period.to,
     staff: staff.map((row) => ({ id: String(row._id), name: row.name })),
-    // With every line of each entry, so the list shows the facts without opening View
-    rows: await Promise.all(rows.map(async ({ doc, ...row }) => ({ ...row, details: await detailsOf(row.entity, doc, req.userId) }))),
+    // With every line of each entry, so the list shows the facts without opening View,
+    // and the entry itself so the owner can open it in its edit form
+    rows: await Promise.all(rows.map(async ({ doc, ...row }) => ({ ...row, details: await detailsOf(row.entity, doc, req.userId), doc }))),
   });
 };
 
