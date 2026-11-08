@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
+import BusinessReports from './pages/BusinessReports';
 import Trips from './pages/Trips';
 import MonthlyHire from './pages/MonthlyHire';
 import Payments from './pages/Payments';
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/activity" element={<ActivityCenter />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/business-reports" element={<BusinessReports />} />
         <Route path="/trips" element={<Trips />} />
         <Route path="/monthly-hire" element={<MonthlyHire />} />
         <Route path="/payments" element={<Payments />} />

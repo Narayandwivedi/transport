@@ -2,6 +2,7 @@ const { Vehicle, Trip, Contract } = require("../models");
 const { monthRange, round2, toNumber } = require("../utils/common");
 const reports = require("../utils/reports");
 const { mileageReport } = require("../utils/mileage");
+const business = require("../utils/businessReports");
 
 // ?from=&to= days, or ?month=YYYY-MM (this month when neither is given)
 const periodFrom = (query) => {
@@ -32,6 +33,20 @@ const partyLedger = async (req, res) => {
 const mileage = async (req, res) => {
   const months = [0, 1, 3, 6, 12].includes(toNumber(req.query.months, 3)) ? toNumber(req.query.months, 3) : 3;
   res.json(await mileageReport(req.userId, { months, vehicleId: req.query.vehicleId || "" }));
+};
+
+// Reports page: ?from=&to= days or ?month=YYYY-MM
+const dieselReport = async (req, res) => {
+  const { from, to } = periodFrom(req.query);
+  res.json(await business.dieselReport(req.userId, from, to));
+};
+const tripReport = async (req, res) => {
+  const { from, to } = periodFrom(req.query);
+  res.json(await business.tripReport(req.userId, from, to));
+};
+const expenseReport = async (req, res) => {
+  const { from, to } = periodFrom(req.query);
+  res.json(await business.expenseReport(req.userId, from, to));
 };
 
 const alerts = async (req, res) => {
@@ -71,4 +86,4 @@ const dashboard = async (req, res) => {
   });
 };
 
-module.exports = { profit, trend, balances, partyLedger, mileage, alerts, dashboard };
+module.exports = { profit, trend, balances, partyLedger, mileage, dieselReport, tripReport, expenseReport, alerts, dashboard };

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Bell, Route, CalendarClock, Wallet, Package, Gauge, Wrench, FileBadge, ChartColumn,
-  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel, Droplet, ListChecks,
+  Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel, Droplet, ListChecks, ClipboardList,
 } from 'lucide-react';
 import Logo from './Logo';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ const navGroups = [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/alerts', icon: Bell, label: 'Alerts', badge: 'alerts' },
       { to: '/activity', icon: ListChecks, label: 'Activity Center', badge: 'approvals' },
+      { to: '/business-reports', icon: ClipboardList, label: 'Reports' },
       { to: '/reports', icon: ChartColumn, label: 'Profit Reports' },
     ],
   },
