@@ -50,8 +50,8 @@ function DayChips({ value, onChange }) {
 
 // The basic lines each card shows; "All details" opens every line
 const KEY_LINES = {
-  trip: ['Date', 'Vehicle', 'Route', 'Transport', 'Paid Now', 'Balance Due'],
-  diesel: ['Date', 'Vehicle', 'Litres', 'Rate', 'Paid Now', 'Due to Pump'],
+  trip: ['Date', 'Vehicle', 'Route', 'Transport', 'Balance Due'],
+  diesel: ['Date', 'Vehicle', 'Litres', 'Rate', 'Due to Pump'],
   payment: ['Date', 'Party', 'Mode', 'Reference'],
   reading: ['Date', 'Vehicle', 'Opening', 'Closing', 'Run'],
   expense: ['Date', 'Vehicle', 'Expense Type', 'Paid To', 'Mode'],
@@ -65,6 +65,14 @@ const basicLines = (entity, details = [], amount = 0) => (KEY_LINES[entity] || [
   .map((label) => details.find((row) => row.label === label))
   .filter((row) => row && !(row.label === 'Transport' && rupeeValue(row.value) === Number(amount)));
 
+// What was paid, shown under the total: "₹5,000", "" for credit, null when the entry has no Paid line
+const paidOf = (details = []) => {
+  const row = details.find((line) => line.label === 'Paid Now');
+  if (!row) return null;
+  const amount = row.value.split(' by ')[0];
+  return rupeeValue(amount) > 0 ? amount : '';
+};
+
 const isDue = (row) => ['Balance Due', 'Due to Pump'].includes(row.label) && rupeeValue(row.value) > 0;
 
 const Fact = ({ row }) => (
@@ -76,38 +84,79 @@ const Fact = ({ row }) => (
 
 /** The basic facts of an entry as small label-over-value cells, in one row on a wide screen. */
 const FactGrid = ({ rows }) => (rows.length > 0 && (
-  <dl className="grid grid-cols-3 gap-x-4 gap-y-2 sm:grid-cols-6">
+  <dl className="hidden grid-cols-6 gap-x-4 gap-y-2 sm:grid">
     {rows.map((row) => <Fact key={row.label} row={row} />)}
   </dl>
 ));
 
-/** Card shell: icon, title and tags, who and when, the amount on the right; body and footer from the caller. */
-function EntryCard({ entity, title, tags, meta, amount, amountLabel = 'Amount', action, children, footer }) {
+// Money lines; on a phone these become small pills instead of cells
+const MONEY_LINES = ['Transport', 'Rate', 'Paid Now', 'Balance Due', 'Due to Pump'];
+
+/**
+ * Phone view of the same facts: one line of what and where, then the Balance pill,
+ * with the card's button(s) on the right of the pills.
+ */
+function MobileFacts({ rows, children }) {
+  const info = rows.filter((row) => row.label !== 'Date' && !MONEY_LINES.includes(row.label)).map((row) => row.value);
+  const due = rows.find((row) => ['Balance Due', 'Due to Pump'].includes(row.label));
+  return (
+    <div className="space-y-1.5 sm:hidden">
+      {info.length > 0 && <p className="line-clamp-2 text-[11px] font-medium leading-snug text-slate-600">{info.join(' · ')}</p>}
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          {due && (isDue(due)
+            ? <span className="rounded-md bg-rose-50 px-1.5 py-px text-[10.5px] font-semibold text-rose-700">Due {due.value}</span>
+            : <span className="rounded-md bg-emerald-50 px-1.5 py-px text-[10.5px] font-semibold text-emerald-700">Fully paid</span>)}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** "Added by Ravi · 2:45 pm" in one line; staff names in blue, the owner in grey. */
+const WhoWhen = ({ verb, by, when }) => (
+  <span className="block truncate">
+    {verb} <span className={`font-semibold ${by?.kind === 'staff' ? 'text-blue-700' : 'text-slate-700'}`}>{by?.kind === 'staff' ? by.name : 'Owner'}</span> · {when}
+  </span>
+);
+
+/**
+ * Card shell. Two lines on top: title and total, then who/when and paid, each line split left and right
+ * so nothing wraps on a phone. Body and footer from the caller; `action` sits on the right on wide screens.
+ */
+function EntryCard({ entity, title, tags, meta, amount, amountLabel = 'Amount', paid = null, action, children, footer }) {
+  const { icon: Icon, tone } = entityLook(entity, title);
   return (
     <article className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-      <header className="flex items-start gap-3 px-4 pt-3 pb-2">
-        <EntryIcon entity={entity} title={title} />
+      <header className="flex items-start gap-2.5 px-3 pt-2.5 pb-1.5 sm:gap-3 sm:px-4 sm:pt-3 sm:pb-2">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset sm:mt-0.5 sm:h-9 sm:w-9 ${tone}`}>
+          <Icon size={15} className="sm:h-[17px] sm:w-[17px]" />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
-            {tags}
-          </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">{meta}</p>
-        </div>
-        {(amount > 0 || action) && (
-          <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <h3 className="truncate text-xs font-bold text-slate-900 sm:text-[15px]">{title}</h3>
+              {tags}
+            </div>
             {amount > 0 && (
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{amountLabel}</p>
-                <p className="text-base font-bold leading-tight text-slate-900">{formatRupees(amount)}</p>
-              </div>
+              <p className="shrink-0 text-right text-[13px] font-bold text-slate-900 sm:text-base">
+                <span className="mr-1.5 hidden text-[10px] font-medium uppercase tracking-wide text-slate-400 sm:inline">{amountLabel}</span>
+                {formatRupees(amount)}
+              </p>
             )}
-            {action}
           </div>
-        )}
+          <div className="mt-0.5 flex items-baseline justify-between gap-2 text-[10.5px] text-slate-500 sm:text-xs">
+            <div className="min-w-0 flex-1">{meta}</div>
+            {amount > 0 && paid !== null && (paid
+              ? <span className="shrink-0 font-semibold text-emerald-700">Paid {paid}</span>
+              : <span className="shrink-0 font-semibold text-amber-700">Credit</span>)}
+          </div>
+        </div>
+        {action && <div className="shrink-0 self-center">{action}</div>}
       </header>
-      {children && <div className="px-4 pb-3 pl-16">{children}</div>}
-      {footer && <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2">{footer}</footer>}
+      {children && <div className="px-3 pb-2.5 pl-[46px] sm:px-4 sm:pb-3 sm:pl-16">{children}</div>}
+      {footer && <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-3 py-2 sm:px-4">{footer}</footer>}
     </article>
   );
 }
@@ -137,15 +186,17 @@ function WaitingCard({ change, busy, onView, onReject, onApprove }) {
       entity={change.entity}
       title={change.summary?.title}
       tags={<span className={isEdit ? 'badge-orange' : 'badge-green'}>{isEdit ? 'Change' : 'New'}</span>}
-      meta={<><span>Sent by</span><ByChip by={{ kind: 'staff', name: change.staffName }} /><span>· {formatDate(change.createdAt)}, {timeOf(change.createdAt)}</span></>}
+      meta={<WhoWhen verb="Sent by" by={{ kind: 'staff', name: change.staffName }} when={`${formatDate(change.createdAt)}, ${timeOf(change.createdAt)}`} />}
       amount={change.summary?.amount}
       amountLabel={change.entity === 'trip' ? 'Total Bill' : 'Amount'}
+      paid={isEdit ? null : paidOf(details)}
       footer={(
         <>
-          <DetailsLink onClick={onView} />
-          <div className="flex gap-2">
-            <button type="button" className="btn-secondary btn-sm text-rose-700" onClick={onReject} disabled={Boolean(busy)}><X size={15} /> Reject</button>
-            <button type="button" className="btn-primary btn-sm" onClick={onApprove} disabled={Boolean(busy)}><Check size={15} /> {busy === change.id ? 'Saving…' : 'Approve'}</button>
+          <span className="hidden sm:inline"><DetailsLink onClick={onView} /></span>
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
+            <button type="button" className="btn-secondary btn-sm justify-center sm:hidden" onClick={onView}><Eye size={15} /> View</button>
+            <button type="button" className="btn-secondary btn-sm justify-center text-rose-700" onClick={onReject} disabled={Boolean(busy)}><X size={15} /> Reject</button>
+            <button type="button" className="btn-primary btn-sm justify-center" onClick={onApprove} disabled={Boolean(busy)}><Check size={15} /> {busy === change.id ? 'Saving…' : 'Approve'}</button>
           </div>
         </>
       )}
@@ -168,7 +219,10 @@ function WaitingCard({ change, busy, onView, onReject, onApprove }) {
           </div>
         )
       ) : facts.length ? (
-        <FactGrid rows={facts} />
+        <>
+          <FactGrid rows={facts} />
+          <MobileFacts rows={facts} />
+        </>
       ) : (
         change.summary?.detail && <p className="text-sm text-slate-600">{change.summary.detail}</p>
       )}
@@ -314,13 +368,19 @@ function AllEntries() {
                   entity={row.entity}
                   title={row.title}
                   tags={row.edited && <span className="badge-gray">Edited</span>}
-                  meta={<><span>Added by</span><ByChip by={row.by} /><span>· {timeOf(row.createdAt)}</span></>}
+                  meta={<WhoWhen verb="Added by" by={row.by} when={timeOf(row.createdAt)} />}
                   amount={row.amount}
                   amountLabel={row.entity === 'trip' ? 'Total Bill' : 'Amount'}
-                  action={<DetailsLink onClick={() => setViewing(row)} />}
+                  paid={paidOf(details)}
+                  action={<span className="hidden sm:inline"><DetailsLink onClick={() => setViewing(row)} /></span>}
                 >
                   {details.length ? (
-                    <FactGrid rows={basicLines(row.entity, details, row.amount)} />
+                    <>
+                      <FactGrid rows={basicLines(row.entity, details, row.amount)} />
+                      <MobileFacts rows={basicLines(row.entity, details, row.amount)}>
+                        <button type="button" className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 active:bg-blue-50" onClick={() => setViewing(row)}><Eye size={13} /> View</button>
+                      </MobileFacts>
+                    </>
                   ) : (
                     row.detail && <p className="text-sm text-slate-600">{row.detail}</p>
                   )}
