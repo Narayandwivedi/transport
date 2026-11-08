@@ -10,7 +10,7 @@ const dieselEntrySchema = new Schema(
     entryNo: { type: String, trim: true, required: true },
     date: { type: Date, required: true },
     vehicleId: { type: ObjectId, ref: "Vehicle", required: true },
-    // The petrol pump (a party); empty when not saved
+    // The petrol pump (a party); empty = Cash (bought for cash, no pump saved)
     partyId: ref("Party"),
     // The trip this diesel was filled for; empty when filled without a trip
     tripId: ref("Trip"),

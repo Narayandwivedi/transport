@@ -41,7 +41,7 @@ const dieselReport = async (userId, from, to) => {
     const vehicleId = String(fill.vehicleId?._id || fill.vehicleId || "");
     add(groupInto(vehicles, vehicleId, () => ({ vehicleId, vehicleNo: fill.vehicleId?.vehicleNo || "—", ...blank() })), fill);
     const partyId = String(fill.partyId?._id || "");
-    add(groupInto(pumps, partyId, () => ({ partyId, name: fill.partyId?.name || "Pump not saved", ...blank() })), fill);
+    add(groupInto(pumps, partyId, () => ({ partyId, name: fill.partyId?.name || "Cash (no pump)", ...blank() })), fill);
     add(totals, fill);
   });
 
@@ -66,7 +66,7 @@ const dieselReport = async (userId, from, to) => {
       entryNo: fill.entryNo,
       vehicleId: String(fill.vehicleId?._id || fill.vehicleId || ""),
       vehicleNo: fill.vehicleId?.vehicleNo || "—",
-      pump: fill.partyId?.name || "",
+      pump: fill.partyId?.name || "Cash",
       tripNo: fill.tripId?.tripNo || "",
       litres: toNumber(fill.litres),
       rate: toNumber(fill.rate),

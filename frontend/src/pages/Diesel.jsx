@@ -89,7 +89,7 @@ export default function Diesel() {
                       <p className="text-xs text-slate-500">{entry.tripId ? `Trip ${entry.tripId.tripNo}${entry.tripId.from ? ` · ${entry.tripId.from} → ${entry.tripId.to}` : ''}` : 'No trip'}</p>
                     </td>
                     <td className={TD}>
-                      <p>{entry.partyId?.name || '—'}</p>
+                      <p>{entry.partyId?.name || 'Cash'}</p>
                       {entry.billNo && <p className="text-xs text-slate-500">Bill {entry.billNo}</p>}
                     </td>
                     <td className={`${TD} whitespace-nowrap text-right`}>{formatNumber(entry.litres)} ltr × {formatRupees(entry.rate)}</td>

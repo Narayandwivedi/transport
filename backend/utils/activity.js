@@ -46,7 +46,7 @@ const SUMMARIES = {
     detail: join([
       await vehicleNoOf(doc.vehicleId, userId),
       doc.litres ? `${toNumber(doc.litres)} ltr` : "",
-      await partyNameOf(doc.partyId, userId),
+      (await partyNameOf(doc.partyId, userId)) || "Cash",
       doc.amount ? paidText(doc.amount, doc.paidAmount ?? doc.amount) : "",
     ]),
     amount: toNumber(doc.amount),
@@ -136,7 +136,7 @@ const DETAILS = {
       line("Date", dayText(doc.date)),
       line("Vehicle", await vehicleNoOf(doc.vehicleId, userId)),
       line("Trip", (await nameFrom(Trip, doc.tripId, userId, "tripNo")) || "No trip"),
-      line("Petrol Pump", (await partyNameOf(doc.partyId, userId)) || "Not saved"),
+      line("Petrol Pump", (await partyNameOf(doc.partyId, userId)) || "Cash (no pump)"),
       line("Litres", `${qty(doc.litres)} ltr`),
       line("Rate", `${rupees(doc.rate)}/ltr`),
       line("Amount", rupees(total)),

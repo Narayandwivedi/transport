@@ -94,7 +94,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
     ...prev, amount, litres: toNumber(prev.rate) > 0 && toNumber(amount) > 0 ? trim(toNumber(amount) / toNumber(prev.rate)) : prev.litres,
   }));
 
-  // Paid now: what was typed; without a saved pump it is all paid on the spot
+  // Paid now: what was typed; Cash (no pump) is all paid now
   const total = toNumber(form.amount);
   const hasPump = Boolean(form.partyId);
   const paid = hasPump ? toNumber(form.paidAmount) : total;
@@ -145,7 +145,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
             <Field label="Petrol Pump" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Not saved (paid on the spot)" />
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash (no pump)" />
             </Field>
             <Field label="Pump Bill / Slip No." htmlFor="dsl-bill">
               <input id="dsl-bill" className="input" value={form.billNo} onChange={(event) => set('billNo', event.target.value)} placeholder="Optional" />
@@ -186,7 +186,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
         </FormSection>
 
         {/* Total, then what is paid now; nothing paid = on credit at the pump */}
-        <FormSection number={4} title="Payment" tone="indigo" hint={hasPump ? "What is not paid now stays due in the pump's ledger." : 'No pump picked: paid in full on the spot. Pick the pump to fill on credit.'}>
+        <FormSection number={4} title="Payment" tone="indigo" hint={hasPump ? "What is not paid now stays due in the pump's ledger." : 'Cash: paid in full now. Pick the pump instead to fill on credit or part paid.'}>
           <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 ${paid > 0 ? 'md:grid-cols-3' : ''}`}>
             <Field label="Total Amount">
               <div className="input flex items-center bg-slate-50 font-bold text-slate-900">{formatRupees(total)}</div>
