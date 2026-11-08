@@ -48,30 +48,81 @@ function DayChips({ value, onChange }) {
   );
 }
 
-// The main lines of each kind of entry shown on a waiting card; View shows every line
+// The basic lines each card shows; "All details" opens every line
 const KEY_LINES = {
-  trip: ['Date', 'Vehicle', 'Driver', 'Bill To', 'Route', 'Charge', 'Paid Now', 'Balance Due'],
-  diesel: ['Date', 'Vehicle', 'Petrol Pump', 'Litres', 'Rate', 'Trip', 'Paid Now', 'Due to Pump'],
+  trip: ['Date', 'Vehicle', 'Route', 'Transport', 'Paid Now', 'Balance Due'],
+  diesel: ['Date', 'Vehicle', 'Litres', 'Rate', 'Paid Now', 'Due to Pump'],
   payment: ['Date', 'Party', 'Mode', 'Reference'],
   reading: ['Date', 'Vehicle', 'Opening', 'Closing', 'Run'],
-  expense: ['Date', 'Vehicle', 'Expense Type', 'Paid To', 'Mode', 'Odometer'],
+  expense: ['Date', 'Vehicle', 'Expense Type', 'Paid To', 'Mode'],
 };
-const isDue = (row) => ['Balance Due', 'Due to Pump'].includes(row.label) && !/^₹0(\.0+)?$/.test(row.value);
+// Shorter labels on the card
+const SHORT = { 'Paid Now': 'Paid', 'Balance Due': 'Balance', 'Due to Pump': 'Balance', 'Expense Type': 'Type' };
+const rupeeValue = (text) => Number(String(text).replace(/[^0-9.]/g, '')) || 0;
+
+// The basic lines of an entry, leaving out what the card already shows on top (the total)
+const basicLines = (entity, details = [], amount = 0) => (KEY_LINES[entity] || [])
+  .map((label) => details.find((row) => row.label === label))
+  .filter((row) => row && !(row.label === 'Transport' && rupeeValue(row.value) === Number(amount)));
+
+const isDue = (row) => ['Balance Due', 'Due to Pump'].includes(row.label) && rupeeValue(row.value) > 0;
 
 const Fact = ({ row }) => (
   <div className="min-w-0">
-    <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{row.label}</dt>
-    <dd className={`mt-0.5 break-words text-sm ${isDue(row) ? 'font-semibold text-rose-700' : 'font-medium text-slate-800'}`}>{row.value}</dd>
+    <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{SHORT[row.label] || row.label}</dt>
+    <dd className={`break-words text-[13px] leading-snug ${isDue(row) ? 'font-semibold text-rose-700' : 'font-medium text-slate-800'}`}>{row.value}</dd>
   </div>
+);
+
+/** The basic facts of an entry as small label-over-value cells, in one row on a wide screen. */
+const FactGrid = ({ rows }) => (rows.length > 0 && (
+  <dl className="grid grid-cols-3 gap-x-4 gap-y-2 sm:grid-cols-6">
+    {rows.map((row) => <Fact key={row.label} row={row} />)}
+  </dl>
+));
+
+/** Card shell: icon, title and tags, who and when, the amount on the right; body and footer from the caller. */
+function EntryCard({ entity, title, tags, meta, amount, amountLabel = 'Amount', action, children, footer }) {
+  return (
+    <article className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+      <header className="flex items-start gap-3 px-4 pt-3 pb-2">
+        <EntryIcon entity={entity} title={title} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-[15px] font-bold text-slate-900">{title}</h3>
+            {tags}
+          </div>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">{meta}</p>
+        </div>
+        {(amount > 0 || action) && (
+          <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+            {amount > 0 && (
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{amountLabel}</p>
+                <p className="text-base font-bold leading-tight text-slate-900">{formatRupees(amount)}</p>
+              </div>
+            )}
+            {action}
+          </div>
+        )}
+      </header>
+      {children && <div className="px-4 pb-3 pl-16">{children}</div>}
+      {footer && <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2">{footer}</footer>}
+    </article>
+  );
+}
+
+const DetailsLink = ({ onClick }) => (
+  <button type="button" className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900" onClick={onClick}>
+    <Eye size={14} /> All details
+  </button>
 );
 
 /** One waiting entry: what it is, its main facts (or for a change, only what changed), and the buttons. */
 function WaitingCard({ change, busy, onView, onReject, onApprove }) {
   const isEdit = change.action === 'update';
   const details = change.details || [];
-  const keys = KEY_LINES[change.entity] || [];
-  const facts = keys.map((label) => details.find((row) => row.label === label)).filter(Boolean);
-  const notes = details.find((row) => row.label === 'Notes')?.value;
+  const facts = basicLines(change.entity, details, change.summary?.amount);
 
   const beforeOf = new Map((change.beforeDetails || []).map((row) => [row.label, row.value]));
   const changed = isEdit && change.beforeDetails
@@ -82,70 +133,46 @@ function WaitingCard({ change, busy, onView, onReject, onApprove }) {
     : [];
 
   return (
-    <article className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-      {/* What and who */}
-      <header className="flex items-start gap-3 px-4 pt-3.5 pb-3">
-        <EntryIcon entity={change.entity} title={change.summary?.title} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[15px] font-bold text-slate-900">{change.summary?.title}</h3>
-            <span className={isEdit ? 'badge-orange' : 'badge-green'}>{isEdit ? 'Change' : 'New'}</span>
+    <EntryCard
+      entity={change.entity}
+      title={change.summary?.title}
+      tags={<span className={isEdit ? 'badge-orange' : 'badge-green'}>{isEdit ? 'Change' : 'New'}</span>}
+      meta={<><span>Sent by</span><ByChip by={{ kind: 'staff', name: change.staffName }} /><span>· {formatDate(change.createdAt)}, {timeOf(change.createdAt)}</span></>}
+      amount={change.summary?.amount}
+      amountLabel={change.entity === 'trip' ? 'Total Bill' : 'Amount'}
+      footer={(
+        <>
+          <DetailsLink onClick={onView} />
+          <div className="flex gap-2">
+            <button type="button" className="btn-secondary btn-sm text-rose-700" onClick={onReject} disabled={Boolean(busy)}><X size={15} /> Reject</button>
+            <button type="button" className="btn-primary btn-sm" onClick={onApprove} disabled={Boolean(busy)}><Check size={15} /> {busy === change.id ? 'Saving…' : 'Approve'}</button>
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-            <ByChip by={{ kind: 'staff', name: change.staffName }} />
-            <span>sent {formatDate(change.createdAt)}, {timeOf(change.createdAt)}</span>
-          </p>
-        </div>
-        {change.summary?.amount > 0 && (
-          <div className="shrink-0 text-right">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{change.entity === 'trip' ? 'Total Bill' : 'Amount'}</p>
-            <p className="text-lg font-bold leading-tight text-slate-900">{formatRupees(change.summary.amount)}</p>
+        </>
+      )}
+    >
+      {change.targetMissing ? (
+        <p className="text-sm text-amber-700">The entry this change was for has been deleted.</p>
+      ) : isEdit && change.beforeDetails ? (
+        changed.length === 0 ? <p className="text-sm text-slate-500">No visible changes.</p> : (
+          <div className="space-y-2">
+            {changed.map((row) => (
+              <div key={row.label} className="grid grid-cols-[7rem_1fr] items-baseline gap-3 text-sm">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{row.label}</span>
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                  <span className="break-words text-slate-400 line-through">{row.before || '—'}</span>
+                  <ArrowRight size={13} className="shrink-0 self-center text-amber-600" />
+                  <span className="break-words font-semibold text-slate-900">{row.after || '—'}</span>
+                </span>
+              </div>
+            ))}
           </div>
-        )}
-      </header>
-
-      {/* The facts */}
-      <div className="border-t border-slate-100 px-4 py-3">
-        {change.targetMissing ? (
-          <p className="text-sm text-amber-700">The entry this change was for has been deleted.</p>
-        ) : isEdit && change.beforeDetails ? (
-          changed.length === 0 ? <p className="text-sm text-slate-500">No visible changes.</p> : (
-            <div className="space-y-2">
-              {changed.map((row) => (
-                <div key={row.label} className="grid grid-cols-[7rem_1fr] items-baseline gap-3 text-sm">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{row.label}</span>
-                  <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                    <span className="break-words text-slate-400 line-through">{row.before || '—'}</span>
-                    <ArrowRight size={13} className="shrink-0 self-center text-amber-600" />
-                    <span className="break-words font-semibold text-slate-900">{row.after || '—'}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )
-        ) : facts.length ? (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-            {facts.map((row) => <Fact key={row.label} row={row} />)}
-          </dl>
-        ) : (
-          change.summary?.detail && <p className="text-sm text-slate-600">{change.summary.detail}</p>
-        )}
-        {!isEdit && notes && (
-          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600"><span className="font-semibold text-slate-500">Note: </span>{notes}</p>
-        )}
-      </div>
-
-      {/* Buttons */}
-      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5">
-        <button type="button" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900" onClick={onView}>
-          <Eye size={15} /> All details
-        </button>
-        <div className="flex gap-2">
-          <button type="button" className="btn-secondary btn-sm text-rose-700" onClick={onReject} disabled={Boolean(busy)}><X size={15} /> Reject</button>
-          <button type="button" className="btn-primary btn-sm" onClick={onApprove} disabled={Boolean(busy)}><Check size={15} /> {busy === change.id ? 'Saving…' : 'Approve'}</button>
-        </div>
-      </footer>
-    </article>
+        )
+      ) : facts.length ? (
+        <FactGrid rows={facts} />
+      ) : (
+        change.summary?.detail && <p className="text-sm text-slate-600">{change.summary.detail}</p>
+      )}
+    </EntryCard>
   );
 }
 
@@ -278,26 +305,28 @@ function AllEntries() {
       ) : groups.map((group) => (
         <div key={group.label}>
           <p className="bg-slate-50 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">{group.label}</p>
-          <div className="divide-y divide-slate-100">
-            {group.rows.map((row) => (
-              <div key={`${row.entity}-${row.id}`} className="flex items-start gap-3 px-4 py-3">
-                <EntryIcon entity={row.entity} title={row.title} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <p className="text-sm font-semibold text-slate-900">{row.title}</p>
-                    {row.amount > 0 && <p className="text-sm font-bold text-slate-900">{formatRupees(row.amount)}</p>}
-                  </div>
-                  {row.detail && <p className="text-xs text-slate-500">{row.detail}</p>}
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-400">
-                    <ByChip by={row.by} />
-                    <span>{timeOf(row.createdAt)}</span>
-                    {row.date && <span>· entry date {formatDate(row.date)}</span>}
-                    {row.edited && <span>· edited</span>}
-                  </p>
-                </div>
-                <ViewButton onClick={() => setViewing(row)} />
-              </div>
-            ))}
+          <div className="space-y-3 p-3 sm:p-4">
+            {group.rows.map((row) => {
+              const details = row.details || [];
+              return (
+                <EntryCard
+                  key={`${row.entity}-${row.id}`}
+                  entity={row.entity}
+                  title={row.title}
+                  tags={row.edited && <span className="badge-gray">Edited</span>}
+                  meta={<><span>Added by</span><ByChip by={row.by} /><span>· {timeOf(row.createdAt)}</span></>}
+                  amount={row.amount}
+                  amountLabel={row.entity === 'trip' ? 'Total Bill' : 'Amount'}
+                  action={<DetailsLink onClick={() => setViewing(row)} />}
+                >
+                  {details.length ? (
+                    <FactGrid rows={basicLines(row.entity, details, row.amount)} />
+                  ) : (
+                    row.detail && <p className="text-sm text-slate-600">{row.detail}</p>
+                  )}
+                </EntryCard>
+              );
+            })}
           </div>
         </div>
       ))}

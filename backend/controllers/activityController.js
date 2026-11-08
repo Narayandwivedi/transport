@@ -12,8 +12,8 @@ const { DAY_MS } = require("../utils/common");
 
 // The entry kinds staff can add, and how to list each
 const ENTRY_MODELS = [
-  { entity: "trip", Model: Trip, populate: "vehicleId partyId" },
-  { entity: "diesel", Model: DieselEntry, populate: "vehicleId partyId" },
+  { entity: "trip", Model: Trip, populate: "vehicleId partyId driverId" },
+  { entity: "diesel", Model: DieselEntry, populate: "vehicleId partyId tripId" },
   { entity: "payment", Model: Payment, populate: "partyId" },
   { entity: "reading", Model: MeterReading, populate: "vehicleId" },
   // Expenses made by trips, diesel, stock or payroll show under those entries
@@ -96,7 +96,13 @@ const feed = async (req, res) => {
     savedEntries(req.userId, period, who),
     Staff.find({ userId: req.userId }).select("name").sort({ name: 1 }).lean(),
   ]);
-  res.json({ from: period.from, to: period.to, staff: staff.map((row) => ({ id: String(row._id), name: row.name })), rows: rows.map(({ doc, ...row }) => row) });
+  res.json({
+    from: period.from,
+    to: period.to,
+    staff: staff.map((row) => ({ id: String(row._id), name: row.name })),
+    // With every line of each entry, so the list shows the facts without opening View
+    rows: await Promise.all(rows.map(async ({ doc, ...row }) => ({ ...row, details: await detailsOf(row.entity, doc, req.userId) }))),
+  });
 };
 
 // The stored form data saved for real, as the staff who sent it
