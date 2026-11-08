@@ -74,7 +74,8 @@ const changeRow = (change) => ({
 // GET /activity/pending (owner): everything waiting, oldest first so it is dealt with in order
 const pending = async (req, res) => {
   const rows = await PendingChange.find({ userId: req.userId, status: "pending" }).sort({ createdAt: 1 }).lean();
-  res.json(rows.map(changeRow));
+  // With their lines, so each card can show the main facts without opening View
+  res.json(await Promise.all(rows.map(async (change) => ({ ...changeRow(change), ...(await changeDetails(change, req.userId)) }))));
 };
 
 // GET /activity/reviewed?days= (owner): approved and rejected, newest first
@@ -214,31 +215,35 @@ const viewEntry = async (req, res) => {
   });
 };
 
-// GET /activity/pending/:id/view (owner): what a waiting (or reviewed) change holds, and for a change the entry as it is now
-const viewChange = async (req, res) => {
-  const change = await PendingChange.findOne({ _id: req.params.id, userId: req.userId }).lean();
-  if (!change) return refuse(res, 404, "Not found");
+// A change's lines as it would save (totals worked out the way saving would; as sent if that no longer works),
+// and for an edit the entry as it is now
+const changeDetails = async (change, userId) => {
   const handler = registry[change.entity];
   const current = change.action === "update" && handler
-    ? await handler.Model.findOne({ _id: change.targetId, userId: req.userId }).lean().catch(() => null)
+    ? await handler.Model.findOne({ _id: change.targetId, userId }).lean().catch(() => null)
     : null;
-  // The form data with its totals worked out the way saving would; as sent if that no longer works
   let after = change.data || {};
   if (handler) {
     try {
       const staff = await Staff.findById(change.staffId).lean();
-      const fakeReq = { userId: req.userId, staff: staff || { _id: change.staffId, name: change.staffName } };
+      const fakeReq = { userId, staff: staff || { _id: change.staffId, name: change.staffName } };
       after = { ...(current || {}), ...(await handler.preview(fakeReq, change.data || {}, current)) };
     } catch {
       after = { ...(current || {}), ...(change.data || {}) };
     }
   }
-  res.json({
-    ...changeRow(change),
-    details: await detailsOf(change.entity, after, req.userId),
-    beforeDetails: current ? await detailsOf(change.entity, current, req.userId) : null,
+  return {
+    details: await detailsOf(change.entity, after, userId),
+    beforeDetails: current ? await detailsOf(change.entity, current, userId) : null,
     targetMissing: change.action === "update" && !current,
-  });
+  };
+};
+
+// GET /activity/pending/:id/view (owner): what a waiting (or reviewed) change holds
+const viewChange = async (req, res) => {
+  const change = await PendingChange.findOne({ _id: req.params.id, userId: req.userId }).lean();
+  if (!change) return refuse(res, 404, "Not found");
+  res.json({ ...changeRow(change), ...(await changeDetails(change, req.userId)) });
 };
 
 module.exports = { pending, reviewed, feed, approve, reject, approveAll, mine, withdraw, viewEntry, viewChange };
