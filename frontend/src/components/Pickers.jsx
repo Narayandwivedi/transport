@@ -10,8 +10,9 @@ const squash = (text) => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, 
  * Dropdown with a search box. items: [{ value, label, tags, search }] in the order to show;
  * search is extra text that matches (a mobile number, a type). Arrow keys move, Enter picks, Esc closes.
  * mono: show the label in a fixed-width font (vehicle numbers).
+ * openSignal: a number; each time it goes up the list opens (e.g. 1 to open when a popup opens, +1 to open it next).
  */
-function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, id, required = false, searchPlaceholder = 'Search', mono = false }) {
+function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, id, required = false, searchPlaceholder = 'Search', mono = false, openSignal = 0 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -47,6 +48,11 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Opened from outside: on the popup opening, or as the next field after another pick
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true);
+  }, [openSignal]);
+
   // A click anywhere else closes it
   useEffect(() => {
     if (!open) return undefined;
@@ -75,7 +81,9 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
       if (options[active]) {
         pick(options[active].value);
         setTimeout(() => {
-          if (!focusNextField(triggerRef.current)) triggerRef.current?.focus();
+          // Another list may have opened as the next field; leave the cursor there
+          const lost = !document.activeElement || document.activeElement === document.body;
+          if (lost && !focusNextField(triggerRef.current)) triggerRef.current?.focus();
         }, 0);
       }
     } else if (event.key === 'Escape') {
@@ -183,7 +191,7 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
 const vehicleTags = (vehicle) => `${getCategoryLabel(vehicle.category)}${vehicle.ownership === 'hired' ? ' · Hired' : ''}${vehicle.status === 'sold' ? ' · Sold' : ''}`;
 
 // Vehicle dropdown with search: "CG04AB1234 · Truck · Hired"; type part of the number or the type
-export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, emptyLabel = 'Select vehicle', id, required = false, includeSold = false }) {
+export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, emptyLabel = 'Select vehicle', id, required = false, includeSold = false, openSignal = 0 }) {
   const items = useMemo(
     () => vehicles
       .filter((vehicle) => includeSold || vehicle.status !== 'sold' || vehicle._id === value)
@@ -201,12 +209,13 @@ export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, e
       required={required}
       searchPlaceholder="Search vehicle no."
       mono
+      openSignal={openSignal}
     />
   );
 }
 
 // Party dropdown with search by name or mobile; the preferred types are listed first
-export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty = false, emptyLabel = 'Select party', id, required = false }) {
+export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty = false, emptyLabel = 'Select party', id, required = false, openSignal = 0 }) {
   const items = useMemo(() => {
     const rank = (party) => (prefer.includes(party.type) ? 0 : 1);
     return [...parties]
@@ -224,6 +233,32 @@ export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty 
       id={id}
       required={required}
       searchPlaceholder="Search party name or mobile"
+      openSignal={openSignal}
+    />
+  );
+}
+
+// Driver dropdown with search, like the vehicle one: "Ramesh · CG04AB1234"; type part of the name, mobile or vehicle no.
+export function DriverSelect({ drivers, value, onChange, allowEmpty = true, emptyLabel = 'Select driver', id, openSignal = 0 }) {
+  const items = useMemo(
+    () => drivers.map((driver) => ({
+      value: driver._id,
+      label: driver.name,
+      tags: [driver.vehicleId?.vehicleNo, driver.isActive ? '' : 'Left'].filter(Boolean).join(' · '),
+      search: `${driver.mobile || ''} ${driver.vehicleId?.vehicleNo || ''}`,
+    })),
+    [drivers],
+  );
+  return (
+    <SearchSelect
+      items={items}
+      value={value}
+      onChange={onChange}
+      allowEmpty={allowEmpty}
+      emptyLabel={emptyLabel}
+      id={id}
+      searchPlaceholder="Search driver name or vehicle no."
+      openSignal={openSignal}
     />
   );
 }

@@ -11,7 +11,7 @@ import FormSection, { AddLink, FieldGrid } from './FormSection';
 import MaterialPopup from './MaterialPopup';
 import PartyPopup from './PartyPopup';
 import EmployeePopup from './payroll/EmployeePopup';
-import { PartySelect, VehicleSelect } from './Pickers';
+import { DriverSelect, PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
 // The five ways to charge, as shown in the picker (per trip is the fixed amount)
@@ -184,8 +184,18 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     });
   };
 
+  // A new trip opens with the vehicle list open; picking the vehicle opens the driver list, then Bill To
+  const [vehicleSignal] = useState(() => (!trip && !preset.vehicleId ? 1 : 0));
+  const [driverSignal, setDriverSignal] = useState(0);
+  const [billToSignal, setBillToSignal] = useState(0);
+  const pickDriver = (value) => {
+    set('driverId', value);
+    setBillToSignal((count) => count + 1);
+  };
+
   const pickVehicle = (vehicleId) => {
     const picked = vehicles.find((item) => item._id === vehicleId);
+    if (vehicleId) setDriverSignal((count) => count + 1);
     setForm((prev) => {
       const next = { ...prev, vehicleId, ...hireDefaults(picked, prev.billingBasis, prev.quantity) };
       // The vehicle's own driver, unless one is already picked
@@ -345,20 +355,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
             <Field label="Vehicle" required>
-              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required openSignal={vehicleSignal} />
             </Field>
             <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
-              <select id="trip-driver" className="input" value={form.driverId} onChange={(event) => set('driverId', event.target.value)}>
-                <option value="">Select driver</option>
-                {driverOptions.map((driver) => (
-                  <option key={driver._id} value={driver._id}>
-                    {driver.name}{driver.vehicleId?.vehicleNo ? ` · ${driver.vehicleId.vehicleNo}` : ''}{driver.isActive ? '' : ' (left)'}
-                  </option>
-                ))}
-              </select>
+              <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} />
             </Field>
             <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty(true)}>New Party</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required />
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required openSignal={billToSignal} />
             </Field>
           </FieldGrid>
         </FormSection>
