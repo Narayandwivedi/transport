@@ -58,8 +58,14 @@ const crudOptions = {
     if (data.materialBy === "me") {
       if (!String(data.material || "").trim()) throw refuse("Enter which material you supplied");
       data.materialAmount = round2(toNumber(data.materialAmount));
+      // What it cost me; with no supplier picked it was bought for cash, so all of it is paid
+      data.materialCost = round2(Math.max(0, toNumber(data.materialCost)));
+      data.materialSupplierId = data.materialSupplierId || null;
+      data.materialCostPaid = data.materialSupplierId ? round2(Math.max(0, toNumber(data.materialCostPaid))) : data.materialCost;
+      if (data.materialCostPaid > data.materialCost) throw refuse("Paid to the supplier cannot be more than the buy cost");
+      if (!["cash", "upi", "bank"].includes(data.materialCostMode)) data.materialCostMode = "cash";
     } else {
-      Object.assign(data, { materialBy: "party", materialAmount: 0 });
+      Object.assign(data, { materialBy: "party", materialAmount: 0, materialSupplierId: null, materialCost: 0, materialCostPaid: 0, materialCostMode: "cash" });
     }
     data.amount = round2(data.freightAmount + data.materialAmount);
     // Money the party paid on the trip: nothing = credit, all = full, some = partial

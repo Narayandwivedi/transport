@@ -118,7 +118,16 @@ const DETAILS = {
       line("Route", [doc.from, doc.to].filter(Boolean).join(" → ")),
       line("Charge", chargeText(doc.billingBasis || "per_trip", doc.quantity, doc.rate, doc.distanceKm)),
       line("Transport", rupees(doc.freightAmount ?? total)),
-      line("Material", doc.material ? `${doc.material}${doc.materialBy === "me" ? ` (we supplied, ${rupees(doc.materialAmount)})` : " (party loads)"}` : ""),
+      line("Material", doc.material ? `${doc.material}${doc.materialBy === "me" ? " (we supplied)" : " (party loads)"}` : ""),
+      ...(doc.materialBy === "me" ? [
+        line("Bought From", (await partyNameOf(doc.materialSupplierId, userId)) || "Cash"),
+        line("Buy Cost", toNumber(doc.materialCost) > 0 ? rupees(doc.materialCost) : ""),
+        line("Paid to Supplier", doc.materialSupplierId && toNumber(doc.materialCost) > 0
+          ? (toNumber(doc.materialCostPaid) > 0 ? `${rupees(doc.materialCostPaid)} by ${modeText(doc.materialCostMode)}` : "Nothing (on their account)")
+          : ""),
+        line("Selling Price", rupees(doc.materialAmount)),
+        line("Material Profit", toNumber(doc.materialCost) > 0 ? rupees(toNumber(doc.materialAmount) - toNumber(doc.materialCost)) : ""),
+      ] : []),
       line("Total Bill", rupees(total)),
       line("Paid Now", received > 0 ? `${rupees(received)} by ${modeText(doc.receivedMode)}` : "Nothing (credit)"),
       line("Balance Due", rupees(Math.max(0, total - received))),

@@ -86,12 +86,17 @@ const tripReport = async (userId, from, to) => {
 
   const vehicles = new Map();
   const parties = new Map();
-  const blank = () => ({ trips: 0, billing: 0, received: 0, hire: 0 });
+  const blank = () => ({ trips: 0, billing: 0, received: 0, hire: 0, materialSold: 0, materialCost: 0 });
   const add = (row, trip) => {
     row.trips += 1;
     row.billing += toNumber(trip.amount);
     row.received += toNumber(trip.receivedAmount);
     row.hire += toNumber(trip.hireAmount);
+    // Material I supplied: sold inside the bill, bought at materialCost
+    if (trip.materialBy === "me") {
+      row.materialSold += toNumber(trip.materialAmount);
+      row.materialCost += toNumber(trip.materialCost);
+    }
   };
   const totals = blank();
 
@@ -109,6 +114,9 @@ const tripReport = async (userId, from, to) => {
     billing: round2(row.billing),
     received: round2(row.received),
     hire: round2(row.hire),
+    materialSold: round2(row.materialSold),
+    materialCost: round2(row.materialCost),
+    materialProfit: round2(row.materialSold - row.materialCost),
     due: round2(Math.max(0, row.billing - row.received)),
   });
 

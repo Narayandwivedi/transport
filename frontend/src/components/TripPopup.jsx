@@ -42,6 +42,7 @@ const EMPTY_EXPENSE = { category: '', amount: '', notes: '' };
 
 const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
+  materialSupplierId: '', materialCost: '', materialCostPaid: '', materialCostMode: 'cash',
   billingBasis: 'per_trip', quantity: '1', rate: '', distanceKm: '',
   driverId: '', hireBasis: '', hireQuantity: '', hireRate: '', expenses: [EMPTY_EXPENSE], status: 'completed', notes: '',
   receivedAmount: '', receivedMode: 'cash',
@@ -89,6 +90,10 @@ const fromTrip = (trip) => ({
   distanceKm: trip.distanceKm || '',
   materialBy: trip.materialBy || 'party',
   materialAmount: trip.materialAmount || '',
+  materialSupplierId: idOf(trip.materialSupplierId),
+  materialCost: trip.materialCost || '',
+  materialCostPaid: trip.materialSupplierId && trip.materialCostPaid ? String(trip.materialCostPaid) : '',
+  materialCostMode: trip.materialCostMode || 'cash',
   hireQuantity: trip.hireQuantity || '',
   hireRate: trip.hireRate || '',
   driverId: idOf(trip.driverId),
@@ -235,6 +240,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   const suppliesMaterial = form.materialBy === 'me';
   const materialAmount = suppliesMaterial ? toNumber(form.materialAmount) : 0;
   const total = amount + materialAmount;
+  // Where the material came from: a supplier (paid now, the rest on their account) or cash
+  const materialCost = suppliesMaterial ? toNumber(form.materialCost) : 0;
+  const hasSupplier = suppliesMaterial && Boolean(form.materialSupplierId);
+  const materialCostPaid = hasSupplier ? toNumber(form.materialCostPaid) : materialCost;
+  const supplierDue = Math.max(0, materialCost - materialCostPaid);
+  const materialProfit = materialAmount - materialCost;
+  const partyName = (id) => parties.find((party) => party._id === id)?.name || '';
   // Trip expenses: toll, puncture and the like, booked against the vehicle
   const expenseTotal = form.expenses.reduce((sum, row) => sum + toNumber(row.amount), 0);
   const setExpense = (index, field, value) => setForm((prev) => ({
@@ -265,6 +277,10 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
       toast.error('Enter which material you supplied');
       return;
     }
+    if (hasSupplier && materialCostPaid > materialCost) {
+      toast.error('Paid to the supplier cannot be more than the buy cost');
+      return;
+    }
     if (received > total) {
       toast.error('Received cannot be more than the bill. Enter any extra in Money Received.');
       return;
@@ -273,7 +289,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     try {
       // distanceKm carries the km of a per ton per km charge, the party's or the owner's
       const distanceKm = basis === 'per_ton_km' || (isHired && hireBasis === 'per_ton_km') ? hireKm : 0;
-      const payload = { ...form, hireQuantity, distanceKm, receivedAmount: received };
+      const payload = { ...form, hireQuantity, distanceKm, receivedAmount: received, materialCostPaid };
       const saved = trip ? await apiClient.put(`/trips/${trip._id}`, payload) : await apiClient.post('/trips', payload);
       // A staff save with "save on approval" waits for the owner
       toast.success(saved?.pendingApproval ? 'Sent to the owner for approval' : trip ? 'Trip updated' : 'Trip added');
@@ -429,34 +445,76 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             })}
           </div>
 
-          <div className={`grid gap-3 md:gap-4 ${suppliesMaterial ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-            {/* We supply: pick from our materials (or add one here). Party loads: just type what it is */}
-            {suppliesMaterial ? (
-              <Field label="Which material" required htmlFor="trip-material" action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
-                <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
-                  <option value="">Select material</option>
-                  {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-              </Field>
-            ) : (
-              <Field label="Material (optional)" htmlFor="trip-material">
-                <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
-              </Field>
-            )}
-            {suppliesMaterial && (
-              <Field label="Material Amount" required>
-                <MoneyInput value={form.materialAmount} onChange={(value) => set('materialAmount', value)} required />
-              </Field>
-            )}
-          </div>
+          {suppliesMaterial ? (
+            <>
+              {/* What, and where it was bought */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
+                <Field label="Which material" required htmlFor="trip-material" action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
+                  <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
+                    <option value="">Select material</option>
+                    {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Bought From" hint="The party you bought it from, or Cash">
+                  <PartySelect parties={parties} value={form.materialSupplierId} onChange={(value) => set('materialSupplierId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
+                </Field>
+              </div>
 
-          {suppliesMaterial && (
-            <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 ring-1 ${total > 0 ? 'bg-emerald-50 ring-emerald-200' : 'bg-slate-50 ring-slate-200'}`}>
-              <span className="text-sm text-emerald-800">
-                Transport {formatRupees(amount)} + Material {formatRupees(materialAmount)}
-              </span>
-              <span className={`text-lg font-bold ${total > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatRupees(total)}</span>
-            </div>
+              {/* Buy and sell */}
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <Field label="Buy Cost" hint={hasSupplier ? `What you pay ${partyName(form.materialSupplierId)}` : 'What you paid for it'}>
+                  <MoneyInput value={form.materialCost} onChange={(value) => set('materialCost', value)} placeholder="0" />
+                </Field>
+                <Field label="Selling Price" required hint={form.partyId ? `Billed to ${partyName(form.partyId)}` : 'Billed to the Bill To party'}>
+                  <MoneyInput value={form.materialAmount} onChange={(value) => set('materialAmount', value)} required />
+                </Field>
+              </div>
+
+              {/* Paying the supplier: now, or later from their ledger */}
+              {hasSupplier && materialCost > 0 && (
+                <div className={`grid gap-3 md:gap-4 ${materialCostPaid > 0 ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                  <Field label="Paid to Supplier Now" action={<AddLink onClick={() => set('materialCostPaid', String(materialCost))}>Full amount</AddLink>}>
+                    <MoneyInput value={form.materialCostPaid} onChange={(value) => set('materialCostPaid', value)} placeholder="0 (on their account)" />
+                  </Field>
+                  {materialCostPaid > 0 && (
+                    <Field label="Paid By" htmlFor="trip-material-mode">
+                      <select id="trip-material-mode" className="input" value={form.materialCostMode} onChange={(event) => set('materialCostMode', event.target.value)}>
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank">Bank</option>
+                      </select>
+                    </Field>
+                  )}
+                </div>
+              )}
+
+              {/* Summary: bought from → sold to, and the material's profit */}
+              <div className="space-y-1.5 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm ring-1 ring-emerald-200">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-emerald-900">
+                  <span>
+                    Bought from <b>{hasSupplier ? partyName(form.materialSupplierId) : 'Cash'}</b> {formatRupees(materialCost)}
+                    <ArrowRight size={13} className="mx-1.5 inline" />
+                    Sold to <b>{partyName(form.partyId) || 'Bill To party'}</b> {formatRupees(materialAmount)}
+                  </span>
+                  {materialCost > 0 && (
+                    <span className={`font-semibold ${materialProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      Material {materialProfit >= 0 ? 'profit' : 'loss'} {formatRupees(Math.abs(materialProfit))}
+                    </span>
+                  )}
+                </div>
+                {hasSupplier && supplierDue > 0 && (
+                  <p className="text-xs text-amber-800">{formatRupees(supplierDue)} goes on {partyName(form.materialSupplierId)}&apos;s account (their ledger).</p>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-x-4 border-t border-emerald-200 pt-1.5">
+                  <span className="text-emerald-800">Transport {formatRupees(amount)} + Material {formatRupees(materialAmount)}</span>
+                  <span className={`text-lg font-bold ${total > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{formatRupees(total)}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <Field label="Material (optional)" htmlFor="trip-material">
+              <input id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} placeholder="Cement, coal, sand…" />
+            </Field>
           )}
         </FormSection>
 

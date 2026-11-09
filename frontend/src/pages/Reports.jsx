@@ -31,7 +31,7 @@ export default function Reports() {
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <StatCard compact icon={IndianRupee} tone="emerald" label="Income" value={formatRupees(totals.income)} hint={`Trips ${formatRupees(totals.tripIncome)} · Rent ${formatRupees(totals.rentIncome)}`} />
-        <StatCard compact icon={Wallet} tone="rose" label="Vehicle Costs" value={formatRupees(totals.tripHireCost + totals.rentCost + totals.vehicleExpenses)} hint="Hire, rent and vehicle expenses" />
+        <StatCard compact icon={Wallet} tone="rose" label="Vehicle Costs" value={formatRupees(totals.tripHireCost + (totals.materialCost || 0) + totals.rentCost + totals.vehicleExpenses)} hint="Hire, material bought, rent and vehicle expenses" />
         <StatCard compact icon={Building2} tone="slate" label="General Expenses" value={formatRupees(totals.generalExpenses)} hint="Office and other, no vehicle" />
         <StatCard compact icon={TrendingUp} tone={(totals.profit || 0) >= 0 ? 'blue' : 'rose'} label="Net Profit" value={formatRupees(totals.profit)} hint="Whole business" />
       </section>
@@ -40,7 +40,7 @@ export default function Reports() {
         <PanelHeader title="Vehicle-wise Profit" count={vehicles.length} onRefresh={reload} loading={loading} />
         {vehicles.length === 0 ? <EmptyState title="No vehicles" /> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+            <table className="w-full min-w-[1080px] text-left">
               <thead>
                 <tr>
                   <th className={TH}>Vehicle</th>
@@ -48,6 +48,7 @@ export default function Reports() {
                   <th className={`${TH} text-right`}>Trip Billing</th>
                   <th className={`${TH} text-right`}>Rent Received</th>
                   <th className={`${TH} text-right`}>Trip Hire</th>
+                  <th className={`${TH} text-right`}>Material Cost</th>
                   <th className={`${TH} text-right`}>Rent Paid</th>
                   <th className={`${TH} text-right`}>Expenses</th>
                   <th className={`${TH} text-right`}>Profit</th>
@@ -64,6 +65,7 @@ export default function Reports() {
                     <td className={`${TD} text-right text-emerald-700`}><Money value={row.tripIncome} /></td>
                     <td className={`${TD} text-right text-emerald-700`}><Money value={row.rentIncome} /></td>
                     <td className={`${TD} text-right text-rose-700`}><Money value={row.tripHireCost} sign="−" /></td>
+                    <td className={`${TD} text-right text-rose-700`}><Money value={row.materialCost} sign="−" /></td>
                     <td className={`${TD} text-right text-rose-700`}><Money value={row.rentCost} sign="−" /></td>
                     <td className={`${TD} text-right text-rose-700`}><Money value={row.expenses} sign="−" /></td>
                     <td className={`${TD} text-right font-bold ${row.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(row.profit)}</td>
@@ -77,16 +79,17 @@ export default function Reports() {
                   <td className={`${TD} text-right`}>{formatRupees(totals.tripIncome)}</td>
                   <td className={`${TD} text-right`}>{formatRupees(totals.rentIncome)}</td>
                   <td className={`${TD} text-right`}>{formatRupees(totals.tripHireCost)}</td>
+                  <td className={`${TD} text-right`}>{formatRupees(totals.materialCost)}</td>
                   <td className={`${TD} text-right`}>{formatRupees(totals.rentCost)}</td>
                   <td className={`${TD} text-right`}>{formatRupees(totals.vehicleExpenses)}</td>
                   <td className={`${TD} text-right`}>{formatRupees(totals.profit + totals.generalExpenses)}</td>
                 </tr>
                 <tr className="bg-slate-50">
-                  <td className={TD} colSpan={7}>Less general / office expenses</td>
+                  <td className={TD} colSpan={8}>Less general / office expenses</td>
                   <td className={`${TD} text-right font-semibold text-rose-700`}>− {formatRupees(totals.generalExpenses)}</td>
                 </tr>
                 <tr className="bg-slate-100 text-base font-bold">
-                  <td className={TD} colSpan={7}>Net business profit</td>
+                  <td className={TD} colSpan={8}>Net business profit</td>
                   <td className={`${TD} text-right ${totals.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(totals.profit)}</td>
                 </tr>
               </tfoot>

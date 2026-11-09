@@ -13,7 +13,14 @@ const tripSchema = new Schema(
     material: text,
     // Usually the party loads its own material; sometimes I supply it and bill it with the transport
     materialBy: { type: String, enum: ["party", "me"], default: "party" },
+    // materialAmount: the selling price billed to the trip's party (partyId)
     materialAmount: money,
+    // Where I bought the material I supplied: the supplier (empty = bought for cash / my own stock),
+    // what it cost me, and what I paid the supplier on the spot (the rest is owed in the supplier's ledger)
+    materialSupplierId: ref("Party"),
+    materialCost: money,
+    materialCostPaid: money,
+    materialCostMode: { type: String, enum: ["cash", "upi", "bank"], default: "cash" },
     billingBasis: { type: String, enum: TRIP_BASES, default: "per_trip" },
     // Trips, km or tons as the basis asks; per ton per km: the tons, with the km in distanceKm
     quantity: { type: Number, default: 1, min: 0 },

@@ -18,6 +18,7 @@ const emptyRow = () => ({
   tripIncome: 0,
   rentIncome: 0,
   tripHireCost: 0,
+  materialCost: 0,
   rentCost: 0,
   expenses: 0,
   km: 0,
@@ -25,7 +26,7 @@ const emptyRow = () => ({
 
 const finishRow = (row) => {
   const income = round2(row.tripIncome + row.rentIncome);
-  const cost = round2(row.tripHireCost + row.rentCost + row.expenses);
+  const cost = round2(row.tripHireCost + row.materialCost + row.rentCost + row.expenses);
   return { ...row, income, cost, profit: round2(income - cost) };
 };
 
@@ -55,6 +56,8 @@ const profitReport = async (userId, from, to) => {
     row.trips += 1;
     row.tripIncome += toNumber(trip.amount);
     row.tripHireCost += toNumber(trip.hireAmount);
+    // Material I supplied: its selling price is in the trip's amount, its buy cost is a cost
+    if (trip.materialBy === "me") row.materialCost += toNumber(trip.materialCost);
     // Km of a per-km trip, or of the meter on older trips that recorded start / end km
     if (trip.billingBasis === "per_km") row.km += toNumber(trip.quantity);
     else if (trip.billingBasis === "per_ton_km") row.km += toNumber(trip.distanceKm);
@@ -96,12 +99,13 @@ const profitReport = async (userId, from, to) => {
     tripIncome: sum("tripIncome"),
     rentIncome: sum("rentIncome"),
     tripHireCost: sum("tripHireCost"),
+    materialCost: sum("materialCost"),
     rentCost: sum("rentCost"),
     vehicleExpenses: sum("expenses"),
     generalExpenses: round2(generalExpenses),
     income: sum("income"),
   };
-  totals.cost = round2(totals.tripHireCost + totals.rentCost + totals.vehicleExpenses + totals.generalExpenses);
+  totals.cost = round2(totals.tripHireCost + totals.materialCost + totals.rentCost + totals.vehicleExpenses + totals.generalExpenses);
   totals.profit = round2(totals.income - totals.cost);
 
   return { from, to, vehicles: vehicleRows, totals, expenseByCategory: byCategory };
@@ -135,7 +139,7 @@ const monthlyTrend = async (userId, months = 6) => {
 const partyLedger = async (userId, partyId, asOf = new Date()) => {
   const party = await Party.findOne({ _id: partyId, userId }).lean();
   if (!party) return null;
-  const [billedTrips, hireTrips, contracts, payments, purchases, purchaseBills, dieselFills] = await Promise.all([
+  const [billedTrips, hireTrips, contracts, payments, purchases, purchaseBills, dieselFills, materialBuys] = await Promise.all([
     Trip.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
     Trip.find({ userId, hirePartyId: partyId, hireAmount: { $gt: 0 } }).populate("vehicleId", "vehicleNo").lean(),
     Contract.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
@@ -143,6 +147,7 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     InventoryTxn.find({ userId, partyId, type: "purchase", paidNow: false }).populate("itemId", "name unit").lean(),
     Purchase.find({ userId, partyId }).lean(),
     DieselEntry.find({ userId, partyId }).populate("vehicleId", "vehicleNo").lean(),
+    Trip.find({ userId, materialBy: "me", materialSupplierId: partyId, materialCost: { $gt: 0 } }).populate("partyId", "name").lean(),
   ]);
 
   const rows = [];
@@ -151,7 +156,7 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     date: trip.date,
     kind: "Trip",
     ref: trip.tripNo,
-    details: `${trip.vehicleId?.vehicleNo || ""} ${route(trip)}${trip.materialBy === "me" && trip.materialAmount ? ` · incl. ${trip.material || "material"} ₹${toNumber(trip.materialAmount)}` : ""}`.trim(),
+    details: `${trip.vehicleId?.vehicleNo || ""} ${route(trip)}${trip.materialBy === "me" && trip.materialAmount ? ` · incl. ${trip.material || "material"} sold ₹${toNumber(trip.materialAmount)}` : ""}`.trim(),
     debit: toNumber(trip.amount),
     credit: 0,
   }));
@@ -244,6 +249,28 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
         ref,
         details: `Paid on diesel fill (${String(fill.mode || "cash").toUpperCase()})`,
         debit: toNumber(fill.paidAmount),
+        credit: 0,
+      });
+    }
+  });
+
+  // Material bought from this party for a trip I supplied it on, and what I paid them on the spot
+  materialBuys.forEach((trip) => {
+    rows.push({
+      date: trip.date,
+      kind: "Material Bought",
+      ref: trip.tripNo,
+      details: `${trip.material || "Material"}${trip.partyId?.name ? ` · sold to ${trip.partyId.name}` : ""}`,
+      debit: 0,
+      credit: toNumber(trip.materialCost),
+    });
+    if (toNumber(trip.materialCostPaid) > 0) {
+      rows.push({
+        date: trip.date,
+        kind: "Paid",
+        ref: trip.tripNo,
+        details: `Paid for ${trip.material || "material"} (${String(trip.materialCostMode || "cash").toUpperCase()})`,
+        debit: toNumber(trip.materialCostPaid),
         credit: 0,
       });
     }

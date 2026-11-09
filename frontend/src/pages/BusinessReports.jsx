@@ -419,12 +419,17 @@ function TripReport({ period, onParty }) {
   if (loading && !data) return <Loading />;
   if (!data) return <ErrorBox message={error} />;
   const { totals, byVehicle, byParty } = data;
+  const hasMaterial = totals.materialSold > 0 || totals.materialCost > 0;
   const maxBilling = Math.max(...byVehicle.map((row) => row.billing), 0);
   const columns = (first) => [
     first,
     { key: 'trips', label: 'Trips', align: 'right', render: (row) => row.trips, total: (t) => t.trips },
     { key: 'billing', label: 'Billing', align: 'right', primary: true, render: (row) => formatRupees(row.billing), total: (t) => formatRupees(t.billing) },
     { key: 'received', label: 'Received', align: 'right', render: (row) => rupees(row.received), total: (t) => rupees(t.received) },
+    ...(hasMaterial ? [
+      { key: 'matSold', label: 'Material Sold', align: 'right', render: (row) => rupees(row.materialSold), total: (t) => rupees(t.materialSold), phoneHide: true },
+      { key: 'matCost', label: 'Material Cost', align: 'right', render: (row) => rupees(row.materialCost), total: (t) => rupees(t.materialCost), phoneHide: true },
+    ] : []),
     { key: 'due', label: 'Unpaid', align: 'right', render: (row) => <Due value={row.due} />, total: (t) => <Due value={t.due} /> },
   ];
   return (
@@ -436,6 +441,14 @@ function TripReport({ period, onParty }) {
         <StatCard compact icon={ArrowDownLeft} tone="emerald" label="Received on Trips" value={formatRupees(totals.received)} hint="Paid when the trip was entered" />
         <StatCard compact icon={Scale} tone={totals.due > 0 ? 'rose' : 'slate'} label="Unpaid on Trips" value={formatRupees(totals.due)} hint="Later payments: see Party Ledger" />
       </section>
+      {hasMaterial && (
+        <section className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 ring-1 ring-emerald-200">
+          <span className="font-semibold">Material we supplied</span>
+          <span>Sold <b>{formatRupees(totals.materialSold)}</b></span>
+          <span>Bought <b>{formatRupees(totals.materialCost)}</b></span>
+          <span className={totals.materialProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>{totals.materialProfit >= 0 ? 'Profit' : 'Loss'} <b>{formatRupees(Math.abs(totals.materialProfit))}</b></span>
+        </section>
+      )}
 
       <Panel title="Trips by Vehicle" count={byVehicle.length}>
         <ReportTable
