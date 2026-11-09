@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import { onEnterNext } from '../utils/enterNav';
 
 /**
  * Popup shell for forms: gradient header, scrollable body, footer with Cancel + submit. Esc closes it.
  * headerActions: extra buttons beside the close button. footerExtra: something at the left of the footer.
+ * enterToNext: Enter moves to the next field; on a field marked data-enter-submit (or the last one) it saves.
  */
-export default function FormPopup({ title, subtitle, submitLabel = 'Save', submitDisabled = false, onSubmit, onClose, maxWidth = 'max-w-md', headerActions, footerExtra, children, hideFooter = false }) {
+export default function FormPopup({ title, subtitle, submitLabel = 'Save', submitDisabled = false, onSubmit, onClose, maxWidth = 'max-w-md', headerActions, footerExtra, children, hideFooter = false, enterToNext = false }) {
+  const formRef = useRef(null);
   useEffect(() => {
     const onKey = (event) => {
       if (event.key === 'Escape') {
@@ -25,6 +28,9 @@ export default function FormPopup({ title, subtitle, submitLabel = 'Save', submi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 md:p-4" onMouseDown={onClose}>
       <form
+        ref={formRef}
+        data-enter-nav={enterToNext ? '' : undefined}
+        onKeyDown={enterToNext ? (event) => onEnterNext(event, () => formRef.current?.requestSubmit()) : undefined}
         className={`flex max-h-[95vh] w-full ${maxWidth} flex-col overflow-hidden rounded-xl bg-white shadow-2xl md:rounded-2xl`}
         role="dialog"
         aria-modal="true"

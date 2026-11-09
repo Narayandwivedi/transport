@@ -97,9 +97,10 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
   // Paid now: what was typed; Cash (no pump) is all paid now
   const total = toNumber(form.amount);
   const hasPump = Boolean(form.partyId);
+  const pumpName = parties.find((party) => party._id === form.partyId)?.name || 'the party';
   const paid = hasPump ? toNumber(form.paidAmount) : total;
   const balanceDue = Math.max(0, total - paid);
-  let paymentLabel = 'On credit';
+  let paymentLabel = 'All on their account';
   if (paid > 0) paymentLabel = paid >= total ? 'Fully paid' : 'Part paid';
 
   const handleSubmit = async () => {
@@ -129,6 +130,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
         onClose={onClose}
         onSubmit={handleSubmit}
         submitDisabled={saving}
+        enterToNext
         footerExtra={toNumber(form.amount) > 0 && (
           <span className="text-slate-600">
             Amount <b className="text-slate-900">{formatRupees(form.amount)}</b>
@@ -144,8 +146,8 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
             <Field label="Vehicle" required hint={vehicle?.currentKm ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
-            <Field label="Petrol Pump" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash (no pump)" />
+            <Field label="Diesel From" hint="Cash, a petrol pump, or any party who gave you diesel" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
             </Field>
             <Field label="Pump Bill / Slip No." htmlFor="dsl-bill">
               <input id="dsl-bill" className="input" value={form.billNo} onChange={(event) => set('billNo', event.target.value)} placeholder="Optional" />
@@ -186,14 +188,16 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
         </FormSection>
 
         {/* Total, then what is paid now; nothing paid = on credit at the pump */}
-        <FormSection number={4} title="Payment" tone="indigo" hint={hasPump ? "What is not paid now stays due in the pump's ledger." : 'Cash: paid in full now. Pick the pump instead to fill on credit or part paid.'}>
+        <FormSection number={4} title="Payment" tone="indigo" hint={hasPump
+          ? `Leave Paid Now at 0 to put it on ${pumpName}'s account: it comes off what they owe you (or adds to what you owe them) in their ledger.`
+          : 'Cash: paid in full now. Pick a pump or party instead to put it on their account.'}>
           <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 ${paid > 0 ? 'md:grid-cols-3' : ''}`}>
             <Field label="Total Amount">
               <div className="input flex items-center bg-slate-50 font-bold text-slate-900">{formatRupees(total)}</div>
             </Field>
             <Field label="Paid Now" htmlFor="dsl-paid" action={hasPump && total > 0 && <AddLink onClick={() => set('paidAmount', String(total))}>Full amount</AddLink>}>
               {hasPump ? (
-                <MoneyInput id="dsl-paid" value={form.paidAmount} onChange={(value) => set('paidAmount', value)} placeholder="0 (credit)" />
+                <MoneyInput id="dsl-paid" value={form.paidAmount} onChange={(value) => set('paidAmount', value)} placeholder="0 (on their account)" data-enter-submit="" />
               ) : (
                 <div className="input flex items-center bg-slate-50 font-semibold text-slate-700">{formatRupees(total)}</div>
               )}
@@ -201,7 +205,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
             {/* How it was paid only matters when something was paid */}
             {paid > 0 && (
               <Field label="Paid By" htmlFor="dsl-mode">
-                <select id="dsl-mode" className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
+                <select id="dsl-mode" className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)} data-enter-submit="">
                   {PAY_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </Field>
@@ -213,7 +217,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
               {paid > total && <span className="ml-2 text-rose-700">more than the amount</span>}
             </span>
             <span className={`text-sm font-semibold ${balanceDue > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
-              Due to pump: <span className="text-lg font-bold">{formatRupees(balanceDue)}</span>
+              {hasPump ? `On ${pumpName}'s account` : 'Due'}: <span className="text-lg font-bold">{formatRupees(balanceDue)}</span>
             </span>
           </div>
         </FormSection>

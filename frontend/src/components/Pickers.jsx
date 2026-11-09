@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { getCategoryLabel, getPartyTypeLabel } from '../utils/constants';
+import { focusNextField } from '../utils/enterNav';
 
 // "CG 04-AB 1234" and "cg04ab1234" match each other
 const squash = (text) => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -17,6 +18,7 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
   const boxRef = useRef(null);
   const searchRef = useRef(null);
   const listRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const selected = items.find((item) => item.value === value) || null;
 
@@ -68,9 +70,14 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
       event.preventDefault();
       setActive((index) => Math.max(0, index - 1));
     } else if (event.key === 'Enter') {
-      // Enter picks the highlighted row instead of submitting the form
+      // Enter picks the highlighted row instead of submitting the form; in an Enter-to-next form it then moves on
       event.preventDefault();
-      if (options[active]) pick(options[active].value);
+      if (options[active]) {
+        pick(options[active].value);
+        setTimeout(() => {
+          if (!focusNextField(triggerRef.current)) triggerRef.current?.focus();
+        }, 0);
+      }
     } else if (event.key === 'Escape') {
       // Esc closes this list, not the popup around it
       event.preventDefault();
@@ -86,6 +93,7 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
   return (
     <div ref={boxRef} className="relative">
       <button
+        ref={triggerRef}
         id={id}
         type="button"
         className="input flex items-center justify-between gap-2 text-left"

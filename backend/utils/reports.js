@@ -231,7 +231,7 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
     const ref = [fill.entryNo, fill.billNo ? `Bill ${fill.billNo}` : ""].filter(Boolean).join(" · ");
     rows.push({
       date: fill.date,
-      kind: "Diesel",
+      kind: "Diesel Taken",
       ref,
       details: `${fill.vehicleId?.vehicleNo || ""} · ${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`.trim(),
       debit: 0,

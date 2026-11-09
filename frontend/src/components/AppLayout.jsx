@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, ChevronLeft, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -42,10 +42,36 @@ function MobileBar({ onMenu }) {
   );
 }
 
+/**
+ * Esc on a laptop goes one page back (to the Dashboard when there is no page to go back to).
+ * Not while a popup or the menu is open (they close on Esc instead; they all lock the page scroll),
+ * and Esc in a text box only leaves the box.
+ */
+function useEscapeBack() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (document.body.style.overflow === 'hidden' || document.querySelector('[role="dialog"]')) return;
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) {
+        el.blur();
+        return;
+      }
+      if (window.history.state?.idx > 0) navigate(-1);
+      else if (location.pathname !== '/') navigate('/');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate, location.pathname]);
+}
+
 export default function AppLayout() {
   const { isAuthenticated, loading } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useEscapeBack();
 
   if (loading) return <Loading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
