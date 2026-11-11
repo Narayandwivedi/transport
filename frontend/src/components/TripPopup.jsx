@@ -335,6 +335,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         onSubmit={handleSubmit}
         submitDisabled={saving}
         submitLabel={trip ? 'Update' : 'Save Trip'}
+        enterToNext
         footerExtra={(
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span className="text-xs font-medium text-slate-500">Bill</span>
@@ -398,7 +399,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-2 sm:grid-cols-4' : askQuantity ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'}`}>
             {/* How the party is charged, then the rate, then how much */}
             <Field label="Charge By" required htmlFor="trip-basis">
-              <select id="trip-basis" className="input" value={basis} onChange={(event) => changeBasis(event.target.value)} required>
+              {/* A plain dropdown; Enter from To opens its list (data-open-on-enter), picking moves on to the rate */}
+              <select id="trip-basis" className="input" value={basis} onChange={(event) => changeBasis(event.target.value)} required data-open-on-enter="">
                 {CHARGE_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
               </select>
             </Field>

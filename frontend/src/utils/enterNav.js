@@ -16,6 +16,20 @@ export const focusNextField = (from) => {
   if (!next) return false;
   next.focus();
   if (typeof next.select === 'function' && next.tagName === 'INPUT' && next.type !== 'date') next.select();
+  // A searchable dropdown opens straight away, ready to type
+  if (next.tagName === 'BUTTON' && next.getAttribute('aria-haspopup') === 'listbox' && next.getAttribute('aria-expanded') !== 'true') next.click();
+  // A plain dropdown marked data-open-on-enter opens its list too (browsers without showPicker just focus it)
+  if (next.tagName === 'SELECT' && next.dataset.openOnEnter !== undefined) {
+    try {
+      next.showPicker?.();
+    } catch {
+      // Not allowed here: it stays focused, arrow keys still change it
+    }
+    // Picking from the list moves on to the next field; leaving it without a pick drops that
+    const onPick = () => focusNextField(next);
+    next.addEventListener('change', onPick, { once: true });
+    next.addEventListener('blur', () => next.removeEventListener('change', onPick), { once: true });
+  }
   return true;
 };
 
