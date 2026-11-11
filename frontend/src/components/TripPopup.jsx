@@ -351,7 +351,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
       >
         {/* 1. Who and when */}
         <FormSection number={1} title="Trip Details" tone="blue">
-          <FieldGrid cols={4}>
+          {/* Row 1: Date and Vehicle · Row 2: Driver and Bill To */}
+          <FieldGrid cols={2}>
             <Field label="Date" required htmlFor="trip-date">
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
