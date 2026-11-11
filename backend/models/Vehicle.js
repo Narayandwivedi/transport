@@ -3,7 +3,7 @@ const { Schema, owner, ref, money, text, BILLING_BASES, makeModel } = require(".
 const vehicleSchema = new Schema(
   {
     ...owner,
-    vehicleNo: { type: String, trim: true, uppercase: true, required: true },
+    vehicleNo: { type: String, trim: true, uppercase: true, required: true, maxlength: 10 },
     category: { type: String, enum: ["truck", "trailer", "hyva", "tanker", "container", "pickup", "jcb", "other"], default: "truck" },
     // own: my vehicle. hired: taken from ownerPartyId (per trip / km / ton, or monthly through a hire contract)
     ownership: { type: String, enum: ["own", "hired"], default: "own" },

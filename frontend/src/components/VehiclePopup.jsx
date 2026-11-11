@@ -63,7 +63,7 @@ export default function VehiclePopup({ vehicle = null, onClose, onSaved }) {
         <FormSection number={1} title="Vehicle" tone="blue">
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             <Field label="Vehicle Number" required htmlFor="veh-no">
-              <input id="veh-no" className="input font-mono uppercase" value={form.vehicleNo} onChange={(event) => set('vehicleNo', event.target.value.toUpperCase())} placeholder="CG04AB1234" required autoFocus />
+              <input id="veh-no" className="input font-mono uppercase" value={form.vehicleNo} onChange={(event) => set('vehicleNo', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} maxLength={10} placeholder="CG04AB1234" required autoFocus />
             </Field>
             <Field label="Type" htmlFor="veh-cat">
               <select id="veh-cat" className="input" value={form.category} onChange={(event) => {
