@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Vehicle, Trip, Contract } = require("../models");
 const { monthRange, round2, toNumber } = require("../utils/common");
 const reports = require("../utils/reports");
@@ -49,6 +50,14 @@ const expenseReport = async (req, res) => {
   res.json(await business.expenseReport(req.userId, from, to));
 };
 
+const punctureReport = async (req, res) => {
+  const { from, to } = periodFrom(req.query);
+  // ?vehicleId= shows one vehicle's punctures only
+  const { vehicleId } = req.query;
+  if (vehicleId && !mongoose.isValidObjectId(vehicleId)) return res.status(400).json({ message: "Wrong value for vehicle" });
+  res.json(await business.punctureReport(req.userId, from, to, vehicleId || null));
+};
+
 const alerts = async (req, res) => {
   res.json(await reports.alerts(req.userId));
 };
@@ -86,4 +95,4 @@ const dashboard = async (req, res) => {
   });
 };
 
-module.exports = { profit, trend, balances, partyLedger, mileage, dieselReport, tripReport, expenseReport, alerts, dashboard };
+module.exports = { profit, trend, balances, partyLedger, mileage, dieselReport, tripReport, expenseReport, punctureReport, alerts, dashboard };

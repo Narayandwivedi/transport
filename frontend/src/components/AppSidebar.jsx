@@ -65,10 +65,10 @@ const matchesPath = (pathname, path) => (
   path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`)
 );
 
-// Only the longest matching entry is active
-const getActivePath = (pathname) => NAV_PATHS
+// Only the longest matching entry is active; a report page (/reports/…) belongs to Reports, not Profit Reports
+const getActivePath = (pathname) => (pathname.startsWith('/reports/') ? '/business-reports' : NAV_PATHS
   .filter((path) => matchesPath(pathname, path))
-  .sort((a, b) => b.length - a.length)[0];
+  .sort((a, b) => b.length - a.length)[0]);
 
 const NavItem = ({ to, icon: Icon, label, isActive, badge }) => (
   <Link

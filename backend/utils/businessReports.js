@@ -155,4 +155,74 @@ const expenseReport = async (userId, from, to) => {
   };
 };
 
-module.exports = { dieselReport, tripReport, expenseReport };
+/**
+ * Tyre punctures. Read from each trip's own expenses (so every trip counts, even one saved before trip
+ * expenses were copied to the Expenses list), plus punctures entered on their own in Expenses.
+ * Expense records made from a trip are skipped there, so nothing is counted twice.
+ */
+const PUNCTURE = /^tyre\s*puncture$/i;
+
+const punctureReport = async (userId, from, to, vehicleId = null) => {
+  const ofVehicle = vehicleId ? { vehicleId } : {};
+  const [trips, expenses] = await Promise.all([
+    // A trip in the period, or one with a puncture dated in it; each puncture is then kept by its own date
+    Trip.find({ userId, ...ofVehicle, "expenses.category": PUNCTURE, $or: [inPeriod(from, to), { "expenses.date": { $gte: from, $lte: to } }] })
+      .select("tripNo date from to vehicleId expenses createdAt")
+      .populate("vehicleId", "vehicleNo")
+      .lean(),
+    Expense.find({ userId, ...ofVehicle, category: PUNCTURE, source: { $ne: "trip" }, ...inPeriod(from, to) })
+      .populate("vehicleId", "vehicleNo")
+      .lean(),
+  ]);
+
+  const vehicleOf = (doc) => ({ vehicleId: String(doc.vehicleId?._id || doc.vehicleId || ""), vehicleNo: doc.vehicleId?.vehicleNo || "No vehicle" });
+  const fromTrips = trips.flatMap((trip) => (trip.expenses || [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => {
+      const when = new Date(row.date || trip.date);
+      return PUNCTURE.test(row.category || "") && toNumber(row.amount) > 0 && when >= from && when <= to;
+    })
+    .map(({ row, index }) => ({
+      id: `${trip._id}-${index}`,
+      // The puncture's own date when saved, else the trip's
+      date: row.date || trip.date,
+      createdAt: trip.createdAt,
+      ...vehicleOf(trip),
+      amount: round2(toNumber(row.amount)),
+      notes: row.notes || "",
+      trip: { id: String(trip._id), tripNo: trip.tripNo, route: [trip.from, trip.to].filter(Boolean).join(" → ") },
+    })));
+  const onTheirOwn = expenses.filter((expense) => toNumber(expense.amount) > 0).map((expense) => ({
+    id: String(expense._id),
+    date: expense.date,
+    createdAt: expense.createdAt,
+    ...vehicleOf(expense),
+    amount: round2(toNumber(expense.amount)),
+    notes: expense.notes || "",
+    trip: null,
+  }));
+  // Latest puncture first
+  const entries = [...fromTrips, ...onTheirOwn]
+    .sort((a, b) => new Date(b.date) - new Date(a.date) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .map(({ createdAt, ...row }) => row);
+
+  const vehicles = new Map();
+  const totals = { count: 0, amount: 0 };
+  entries.forEach((entry) => {
+    const row = groupInto(vehicles, entry.vehicleId, () => ({ vehicleId: entry.vehicleId, vehicleNo: entry.vehicleNo, count: 0, amount: 0 }));
+    row.count += 1;
+    row.amount += entry.amount;
+    totals.count += 1;
+    totals.amount += entry.amount;
+  });
+
+  return {
+    from,
+    to,
+    totals: { ...totals, amount: round2(totals.amount), onTrips: entries.filter((row) => row.trip).length },
+    byVehicle: sortedBy(vehicles, "amount").map((row) => ({ ...row, amount: round2(row.amount) })),
+    entries,
+  };
+};
+
+module.exports = { dieselReport, tripReport, expenseReport, punctureReport };

@@ -12,7 +12,8 @@ const syncTripExpenses = async (userId, trip) => {
   if (!rows.length) return;
   await Expense.insertMany(rows.map((row) => ({
     userId,
-    date: trip.date,
+    // A puncture keeps its own date; other spends are on the trip's date
+    date: row.date || trip.date,
     vehicleId: trip.vehicleId,
     category: row.category,
     amount: row.amount,
@@ -83,7 +84,15 @@ const crudOptions = {
     }
     // Trip expenses: keep the rows with an amount, and their total
     data.expenses = (Array.isArray(data.expenses) ? data.expenses : [])
-      .map((row) => ({ category: String(row.category || "").trim(), amount: round2(toNumber(row.amount)), notes: String(row.notes || "").trim() }))
+      .map((row) => {
+        const date = row.date ? new Date(row.date) : null;
+        return {
+          category: String(row.category || "").trim(),
+          amount: round2(toNumber(row.amount)),
+          notes: String(row.notes || "").trim(),
+          date: date && !Number.isNaN(date.getTime()) ? date : null,
+        };
+      })
       .filter((row) => row.category && row.amount > 0);
     data.expenseTotal = round2(data.expenses.reduce((total, row) => total + row.amount, 0));
     return data;

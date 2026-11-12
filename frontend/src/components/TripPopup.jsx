@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Package, PackageCheck, Trash2 } from 'lucide-react';
+import { ArrowRight, Package, PackageCheck, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useMasters from '../utils/useMasters';
 import { useAuth } from '../context/AuthContext';
 import { TRIP_BASIS_OPTIONS, calcAmount, getBasisUnit } from '../utils/constants';
-import { formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
+import { formatDate, formatNumber, formatRupees, idOf, toDayInput, todayInput, toNumber } from '../utils/format';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
 import MaterialPopup from './MaterialPopup';
@@ -38,8 +38,14 @@ const RECEIVED_MODES = [
 ];
 
 // The kinds of spend on the way, for now
-const EXPENSE_TYPES = ['Tyre Puncture', 'Toll', 'Other'];
-const EMPTY_EXPENSE = { category: '', amount: '', notes: '' };
+// Picking "Other" asks for the expense's own name, which is saved as its type
+const OTHER_EXPENSE = 'Other';
+// Picking "Tyre Puncture" opens its own details popup: puncture date, amount and notes
+const PUNCTURE_EXPENSE = 'Tyre Puncture';
+const EXPENSE_TYPES = [PUNCTURE_EXPENSE, 'Toll', OTHER_EXPENSE];
+// date: only a puncture keeps its own date; other spends are on the trip's date
+const EMPTY_EXPENSE = { category: '', amount: '', notes: '', date: '' };
+const isPuncture = (row) => row.category === PUNCTURE_EXPENSE;
 
 const EMPTY = {
   date: todayInput(), vehicleId: '', partyId: '', from: '', to: '', material: '', materialBy: 'party', materialAmount: '',
@@ -101,7 +107,7 @@ const fromTrip = (trip) => ({
   receivedAmount: trip.receivedAmount ? String(trip.receivedAmount) : '',
   receivedMode: trip.receivedMode || 'cash',
   // Always at least one expense row to fill
-  expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '' })) : [EMPTY_EXPENSE],
+  expenses: trip.expenses?.length ? trip.expenses.map((row) => ({ category: row.category, amount: row.amount || '', notes: row.notes || '', date: row.date ? toDayInput(row.date) : '' })) : [EMPTY_EXPENSE],
 });
 
 // "25 ton × ₹900", "30 ton × 100 km × ₹4" or "Fixed"
@@ -126,7 +132,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   // Staff pick from the drivers the owner added; they cannot add one
   const { isStaff } = useAuth();
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
-  const [addingParty, setAddingParty] = useState(false);
+  // Which field a new party is added for: Bill To ('partyId') or Bought From ('materialSupplierId')
+  const [addingParty, setAddingParty] = useState(null);
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [saving, setSaving] = useState(false);
   // Materials we supply, for the dropdown when we supply material
@@ -266,9 +273,71 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     ...prev,
     expenses: prev.expenses.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
   }));
+  // A new type for a row; a puncture's own date and notes go when it stops being a puncture
+  const setExpenseType = (index, category) => setForm((prev) => ({
+    ...prev,
+    expenses: prev.expenses.map((row, i) => (i === index ? { ...row, category, ...(isPuncture(row) && category !== PUNCTURE_EXPENSE ? { date: '', notes: '' } : {}) } : row)),
+  }));
+  // The expense row whose "Other" name is being typed: { index, name }
+  const [otherExpense, setOtherExpense] = useState(null);
+  // The puncture being added or edited: { index, date, vehicleId, amount, notes }
+  const [puncture, setPuncture] = useState(null);
+  const openPuncture = (index) => {
+    const row = form.expenses[index];
+    const own = isPuncture(row);
+    setPuncture({
+      index,
+      date: (own && row.date) || form.date || todayInput(),
+      vehicleId: form.vehicleId,
+      amount: own && row.amount ? String(row.amount) : '',
+      notes: own ? row.notes || '' : '',
+    });
+  };
+  const pickExpenseType = (index, value) => {
+    if (value === OTHER_EXPENSE) setOtherExpense({ index, name: '' });
+    else if (value === PUNCTURE_EXPENSE) openPuncture(index);
+    else setExpenseType(index, value);
+  };
+  const saveOtherExpense = () => {
+    const name = otherExpense.name.trim();
+    if (!name) return;
+    // A name that is already a listed type picks that type (a puncture still asks its details)
+    const listed = EXPENSE_TYPES.find((type) => type !== OTHER_EXPENSE && type.toLowerCase() === name.toLowerCase());
+    setOtherExpense(null);
+    if (listed === PUNCTURE_EXPENSE) openPuncture(otherExpense.index);
+    else setExpenseType(otherExpense.index, listed || name);
+  };
+  const savePuncture = () => {
+    if (!puncture.date) {
+      toast.error('Pick the puncture date');
+      return;
+    }
+    if (!puncture.vehicleId) {
+      toast.error('Pick the vehicle');
+      return;
+    }
+    if (!(toNumber(puncture.amount) > 0)) {
+      toast.error('Enter the puncture expense');
+      return;
+    }
+    // Picked here only when the trip had no vehicle yet: it becomes the trip's vehicle
+    if (puncture.vehicleId !== form.vehicleId) pickVehicle(puncture.vehicleId);
+    setForm((prev) => ({
+      ...prev,
+      expenses: prev.expenses.map((row, i) => (i === puncture.index
+        ? { category: PUNCTURE_EXPENSE, amount: puncture.amount, notes: puncture.notes.trim(), date: puncture.date }
+        : row)),
+    }));
+    setPuncture(null);
+  };
   const addExpense = () => setForm((prev) => ({ ...prev, expenses: [...prev.expenses, EMPTY_EXPENSE] }));
   const filledExpenses = form.expenses.filter((row) => toNumber(row.amount) > 0).length;
   const removeExpense = (index) => setForm((prev) => ({ ...prev, expenses: prev.expenses.filter((_, i) => i !== index) }));
+  // Deleting the only row leaves one empty row to fill
+  const deleteExpense = (index) => setForm((prev) => ({
+    ...prev,
+    expenses: prev.expenses.length > 1 ? prev.expenses.filter((_, i) => i !== index) : [EMPTY_EXPENSE],
+  }));
   // Profit on the transport: what the party pays for it, less the owner's pay and the trip's expenses
   const margin = amount - hireAmount - expenseTotal;
   // Paid now on the trip: nothing = credit, part = partial, all = fully paid
@@ -359,13 +428,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Date" required htmlFor="trip-date">
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
-            <Field label="Vehicle" required action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
+            <Field label="Vehicle" required actionNextToLabel action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => pickVehicle(value)} required openSignal={vehicleSignal} />
             </Field>
             <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
               <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} />
             </Field>
-            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty(true)}>New Party</AddLink>}>
+            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty('partyId')}>New Party</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required openSignal={billToSignal} />
             </Field>
           </FieldGrid>
@@ -458,13 +527,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <>
               {/* What, and where it was bought */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
-                <Field label="Which material" required htmlFor="trip-material" action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
+                <Field label="Which material" required htmlFor="trip-material" actionNextToLabel action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
                   <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
                     <option value="">Select material</option>
                     {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
                   </select>
                 </Field>
-                <Field label="Bought From" hint="The party you bought it from, or Cash">
+                <Field label="Bought From" hint="The party you bought it from, or Cash" actionNextToLabel action={<AddLink onClick={() => setAddingParty('materialSupplierId')}>Add Party</AddLink>}>
                   <PartySelect parties={parties} value={form.materialSupplierId} onChange={(value) => set('materialSupplierId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
                 </Field>
               </div>
@@ -609,28 +678,47 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           {/* Two boxes per expense: type, then amount */}
           <div className="space-y-2">
             {form.expenses.map((row, index) => (
-              <div key={index} className={`grid items-end gap-2 sm:gap-3 ${form.expenses.length > 1 ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
-                <Field label="Expense Type" htmlFor={`trip-expense-${index}`}>
-                  <select id={`trip-expense-${index}`} className="input" value={row.category} onChange={(event) => setExpense(index, 'category', event.target.value)}>
-                    <option value="">Select type</option>
-                    {/* An older trip may hold a type no longer listed */}
-                    {[...EXPENSE_TYPES, ...(row.category && !EXPENSE_TYPES.includes(row.category) ? [row.category] : [])].map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Amount">
-                  <MoneyInput value={row.amount} onChange={(value) => setExpense(index, 'amount', value)} />
-                </Field>
-                {form.expenses.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeExpense(index)}
-                    aria-label="Remove expense"
-                    className="mb-0.5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+              <div key={index} className="space-y-1.5">
+                <div className={`grid items-end gap-2 sm:gap-3 ${form.expenses.length > 1 ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
+                  <Field label="Expense Type" htmlFor={`trip-expense-${index}`}>
+                    <select id={`trip-expense-${index}`} className="input" value={row.category} onChange={(event) => pickExpenseType(index, event.target.value)}>
+                      <option value="">Select type</option>
+                      {/* An older trip may hold a type no longer listed */}
+                      {[...EXPENSE_TYPES, ...(row.category && !EXPENSE_TYPES.includes(row.category) ? [row.category] : [])].map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Amount">
+                    <MoneyInput value={row.amount} onChange={(value) => setExpense(index, 'amount', value)} />
+                  </Field>
+                  {form.expenses.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeExpense(index)}
+                      aria-label="Remove expense"
+                      className="mb-0.5 flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+                {/* A saved puncture: its date and notes, with edit and delete */}
+                {isPuncture(row) && (
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-white/70 px-3 py-1.5 text-xs ring-1 ring-rose-200">
+                    <span className="min-w-0 text-rose-800">
+                      Puncture on <b>{formatDate(row.date || form.date)}</b>
+                      {row.notes && <span className="text-slate-500"> · {row.notes}</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <button type="button" onClick={() => openPuncture(index)} className="flex cursor-pointer items-center gap-0.5 font-semibold text-primary-600 hover:text-primary-800 hover:underline">
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button type="button" onClick={() => deleteExpense(index)} className="flex cursor-pointer items-center gap-0.5 font-semibold text-rose-600 hover:text-rose-800 hover:underline">
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </span>
+                  </div>
                 )}
               </div>
             ))}
@@ -673,6 +761,66 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         />
       )}
 
+      {puncture && (
+        <FormPopup
+          title="Add Tyre Puncture Details"
+          subtitle="Saved with this trip as its puncture expense"
+          maxWidth="max-w-lg"
+          submitLabel="Save Puncture Details"
+          onClose={() => setPuncture(null)}
+          onSubmit={savePuncture}
+        >
+          <FieldGrid cols={2}>
+            <Field label="Puncture Date" required htmlFor="puncture-date">
+              <input id="puncture-date" type="date" className="input" value={puncture.date} onChange={(event) => setPuncture((prev) => ({ ...prev, date: event.target.value }))} required autoFocus />
+            </Field>
+            {/* The puncture belongs to this trip, so it is on this trip's vehicle; picked here only if the trip has none yet */}
+            <Field label="Vehicle Number" required hint={form.vehicleId ? "This trip's vehicle (change it in Trip Details)" : 'Also becomes this trip’s vehicle'}>
+              {form.vehicleId
+                ? <div className="input flex items-center bg-slate-50 font-mono font-semibold text-slate-900">{vehicle?.vehicleNo || '—'}</div>
+                : <VehicleSelect vehicles={vehicles} value={puncture.vehicleId} onChange={(value) => setPuncture((prev) => ({ ...prev, vehicleId: value }))} required />}
+            </Field>
+            <Field label="Trip" hint="The puncture is saved with this trip">
+              <div className="input flex items-center gap-2 bg-slate-50 text-slate-900">
+                <span className="font-mono font-semibold">{trip ? trip.tripNo : 'This new trip'}</span>
+                {(form.from || form.to) && <span className="truncate text-xs text-slate-500">{form.from || '…'} → {form.to || '…'}</span>}
+              </div>
+            </Field>
+            <Field label="Puncture Expense" required>
+              <MoneyInput value={puncture.amount} onChange={(value) => setPuncture((prev) => ({ ...prev, amount: value }))} placeholder="0" required />
+            </Field>
+            <Field label="Notes (Optional)" htmlFor="puncture-notes" className="sm:col-span-2">
+              <textarea id="puncture-notes" rows={2} className="input resize-none" value={puncture.notes} onChange={(event) => setPuncture((prev) => ({ ...prev, notes: event.target.value }))} placeholder="Which tyre, where it happened…" />
+            </Field>
+          </FieldGrid>
+        </FormPopup>
+      )}
+
+      {otherExpense && (
+        <FormPopup
+          title="Other Expense"
+          subtitle="Name this expense"
+          maxWidth="max-w-sm"
+          submitLabel="Add"
+          onClose={() => setOtherExpense(null)}
+          onSubmit={saveOtherExpense}
+        >
+          <Field label="Expense Name" required htmlFor="trip-other-expense">
+            <input
+              id="trip-other-expense"
+              className="input"
+              value={otherExpense.name}
+              onChange={(event) => setOtherExpense((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder="Enter Other Expense Type"
+              autoComplete="off"
+              maxLength={40}
+              required
+              autoFocus
+            />
+          </Field>
+        </FormPopup>
+      )}
+
       {addingDriver && (
         <EmployeePopup
           defaultRole="driver"
@@ -697,10 +845,12 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
       {addingParty && (
         <PartyPopup
-          onClose={() => setAddingParty(false)}
+          // A party added for Bought From starts as a supplier
+          defaultType={addingParty === 'materialSupplierId' ? 'supplier' : 'customer'}
+          onClose={() => setAddingParty(null)}
           onSaved={async (party) => {
             await reloadMasters();
-            set('partyId', party._id);
+            if (party?._id) set(addingParty, party._id);
           }}
         />
       )}

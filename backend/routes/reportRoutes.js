@@ -1,5 +1,5 @@
 const express = require("express");
-const { profit, trend, balances, partyLedger, mileage, dieselReport, tripReport, expenseReport } = require("../controllers/reportController");
+const { profit, trend, balances, partyLedger, mileage, dieselReport, tripReport, expenseReport, punctureReport } = require("../controllers/reportController");
 
 // Reports: profit, monthly trend, party balances and ledgers, mileage
 const router = express.Router();
@@ -14,5 +14,7 @@ router.get("/mileage", mileage);
 router.get("/diesel", dieselReport);
 router.get("/trips", tripReport);
 router.get("/expenses", expenseReport);
+// Tyre puncture history: each puncture with its trip, and the total spent
+router.get("/punctures", punctureReport);
 
 module.exports = router;
