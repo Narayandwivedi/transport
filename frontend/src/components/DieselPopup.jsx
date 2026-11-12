@@ -9,6 +9,8 @@ import FormSection, { AddLink, FieldGrid } from './FormSection';
 import PartyPopup from './PartyPopup';
 import { PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
+import VehiclePopup from './VehiclePopup';
+import { useAuth } from '../context/AuthContext';
 
 const PAY_MODES = [
   { value: 'cash', label: 'Cash' },
@@ -30,7 +32,11 @@ const trim = (value) => String(Math.round(value * 100) / 100);
  * Type the litres and rate (amount is worked out), or the amount and rate (litres are worked out).
  */
 export default function DieselPopup({ entry = null, preset = {}, onClose, onSaved }) {
+  // reload fetches vehicles and parties again
   const { vehicles, parties, reload: reloadParties } = useMasters();
+  // Staff can only pick a vehicle the owner added
+  const { isStaff } = useAuth();
+  const [addingVehicle, setAddingVehicle] = useState(false);
   const [form, setForm] = useState(() => (entry ? {
     date: toDayInput(entry.date),
     vehicleId: idOf(entry.vehicleId),
@@ -143,10 +149,10 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
             <Field label="Date" required htmlFor="dsl-date">
               <input id="dsl-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
-            <Field label="Vehicle" required hint={vehicle?.currentKm ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
+            <Field label="Vehicle" required actionNextToLabel action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>Add Vehicle</AddLink>} hint={vehicle?.currentKm ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
             </Field>
-            <Field label="Diesel From" hint="Cash, a petrol pump, or any party who gave you diesel" action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
+            <Field label="Diesel From" hint="Cash, a petrol pump, or any party who gave you diesel" actionNextToLabel action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
             </Field>
             <Field label="Pump Bill / Slip No." htmlFor="dsl-bill">
@@ -226,6 +232,16 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
           <textarea rows={2} className="input resize-none" aria-label="Notes" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="Optional" />
         </FormSection>
       </FormPopup>
+
+      {addingVehicle && (
+        <VehiclePopup
+          onClose={() => setAddingVehicle(false)}
+          onSaved={async (saved) => {
+            await reloadParties();
+            if (saved?._id) pickVehicle(saved._id);
+          }}
+        />
+      )}
 
       {addingPump && (
         <PartyPopup
