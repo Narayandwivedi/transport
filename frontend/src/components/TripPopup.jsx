@@ -13,6 +13,7 @@ import PartyPopup from './PartyPopup';
 import EmployeePopup from './payroll/EmployeePopup';
 import { DriverSelect, PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
+import VehiclePopup from './VehiclePopup';
 
 // The five ways to charge, as shown in the picker (per trip is the fixed amount)
 const CHARGE_TYPES = [
@@ -121,11 +122,12 @@ const sumText = (basis, quantity, rate, km) => {
  * per ton: the weight and the rate. On a hired vehicle paid per trip / km / ton, the owner's share is worked out too.
  */
 export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }) {
-  const { vehicles, parties, reload: reloadParties } = useMasters();
+  const { vehicles, parties, reload: reloadMasters } = useMasters();
   // Staff pick from the drivers the owner added; they cannot add one
   const { isStaff } = useAuth();
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
   const [addingParty, setAddingParty] = useState(false);
+  const [addingVehicle, setAddingVehicle] = useState(false);
   const [saving, setSaving] = useState(false);
   // Materials we supply, for the dropdown when we supply material
   const [materials, setMaterials] = useState([]);
@@ -193,8 +195,9 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
     setBillToSignal((count) => count + 1);
   };
 
-  const pickVehicle = (vehicleId) => {
-    const picked = vehicles.find((item) => item._id === vehicleId);
+  // `fresh` is a vehicle just added from here, not yet in the loaded list this render sees
+  const pickVehicle = (vehicleId, fresh = null) => {
+    const picked = fresh || vehicles.find((item) => item._id === vehicleId);
     if (vehicleId) setDriverSignal((count) => count + 1);
     setForm((prev) => {
       const next = { ...prev, vehicleId, ...hireDefaults(picked, prev.billingBasis, prev.quantity) };
@@ -356,8 +359,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Date" required htmlFor="trip-date">
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
-            <Field label="Vehicle" required>
-              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required openSignal={vehicleSignal} />
+            <Field label="Vehicle" required action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => pickVehicle(value)} required openSignal={vehicleSignal} />
             </Field>
             <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
               <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} />
@@ -660,6 +663,16 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         </FormSection>
       </FormPopup>
 
+      {addingVehicle && (
+        <VehiclePopup
+          onClose={() => setAddingVehicle(false)}
+          onSaved={async (saved) => {
+            await reloadMasters();
+            if (saved?._id) pickVehicle(saved._id, saved);
+          }}
+        />
+      )}
+
       {addingDriver && (
         <EmployeePopup
           defaultRole="driver"
@@ -686,7 +699,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         <PartyPopup
           onClose={() => setAddingParty(false)}
           onSaved={async (party) => {
-            await reloadParties();
+            await reloadMasters();
             set('partyId', party._id);
           }}
         />
