@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Bell, Route, CalendarClock, Wallet, Package, Gauge, Wrench, FileBadge, ChartColumn,
+  LayoutDashboard, Bell, Route, CalendarClock, Wallet, Package, Gauge, Wrench, FileBadge,
   Calculator, FileText, Users, Truck, HandCoins, Settings, X, IdCard, UserRound, Boxes, Fuel, Droplet, ListChecks, ClipboardList,
 } from 'lucide-react';
 import Logo from './Logo';
@@ -16,7 +16,6 @@ const navGroups = [
       { to: '/alerts', icon: Bell, label: 'Alerts', badge: 'alerts' },
       { to: '/activity', icon: ListChecks, label: 'Activity Center', badge: 'approvals' },
       { to: '/business-reports', icon: ClipboardList, label: 'Reports' },
-      { to: '/reports', icon: ChartColumn, label: 'Profit Reports' },
     ],
   },
   {
@@ -65,7 +64,7 @@ const matchesPath = (pathname, path) => (
   path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`)
 );
 
-// Only the longest matching entry is active; a report page (/reports/…) belongs to Reports, not Profit Reports
+// Only the longest matching entry is active; a report page (/reports/…) belongs to Reports
 const getActivePath = (pathname) => (pathname.startsWith('/reports/') ? '/business-reports' : NAV_PATHS
   .filter((path) => matchesPath(pathname, path))
   .sort((a, b) => b.length - a.length)[0]);
