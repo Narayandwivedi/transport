@@ -11,8 +11,19 @@ const squash = (text) => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, 
  * search is extra text that matches (a mobile number, a type). Arrow keys move, Enter picks, Esc closes.
  * mono: show the label in a fixed-width font (vehicle numbers).
  * openSignal: a number; each time it goes up the list opens (e.g. 1 to open when a popup opens, +1 to open it next).
+ * hideSearch: the open list has no search box, only the options (scrolling when long). The field keeps the keys:
+ * arrows move, Enter picks, Esc closes, and typing a few letters or digits jumps to the first match.
+ * triggerClassName: extra classes for the field (e.g. a smaller one in a section header). ariaLabel: when no label points at it.
+ * menuAlign: 'right' opens the list from the field's right edge (a field near the right side).
+ * noDefaultPick: with nothing picked yet, the list opens with no row highlighted and Enter moves on without picking.
+ * coverField: the open list sits in the field's place, so only the list shows (the field is back once it closes).
+ * disabled: greyed out and cannot open. enterSubmit: the form's last field, where Enter saves (after picking).
  */
-function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, id, required = false, searchPlaceholder = 'Search', mono = false, openSignal = 0 }) {
+function SearchSelect({
+  items, value, onChange, allowEmpty = false, emptyLabel, id, required = false, searchPlaceholder = 'Search', mono = false, openSignal = 0,
+  hideSearch = false, triggerClassName = '', ariaLabel, menuAlign = 'left', noDefaultPick = false, coverField = false,
+  disabled = false, enterSubmit = false,
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -20,6 +31,8 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
   const searchRef = useRef(null);
   const listRef = useRef(null);
   const triggerRef = useRef(null);
+  // hideSearch: what was typed in the last moment, to jump to the first option that matches it
+  const typed = useRef({ text: '', at: 0 });
 
   const selected = items.find((item) => item.value === value) || null;
 
@@ -43,8 +56,11 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
   useEffect(() => {
     if (!open) return;
     const index = options.findIndex((option) => option.value === (value || ''));
-    setActive(index >= 0 ? index : 0);
-    searchRef.current?.focus();
+    // noDefaultPick: with nothing picked yet, no row is highlighted until an arrow key or typing
+    setActive(index >= 0 ? index : noDefaultPick ? -1 : 0);
+    // No search box: the cursor stays on the field, which takes the keys
+    if (hideSearch) triggerRef.current?.focus();
+    else searchRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -78,13 +94,25 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
     } else if (event.key === 'Enter') {
       // Enter picks the highlighted row instead of submitting the form; in an Enter-to-next form it then moves on
       event.preventDefault();
+      // enterSubmit: the last field of an Enter-to-next form; Enter here saves the form (after the pick)
+      const saveForm = () => triggerRef.current?.closest('form')?.requestSubmit();
       if (options[active]) {
         pick(options[active].value);
         setTimeout(() => {
+          if (enterSubmit) {
+            saveForm();
+            return;
+          }
           // Another list may have opened as the next field; leave the cursor there
-          const lost = !document.activeElement || document.activeElement === document.body;
+          // (with no search box the cursor is still on this field, which also means it should move on)
+          const focused = document.activeElement;
+          const lost = !focused || focused === document.body || (hideSearch && focused === triggerRef.current);
           if (lost && !focusNextField(triggerRef.current)) triggerRef.current?.focus();
         }, 0);
+      } else if (noDefaultPick) {
+        // Nothing highlighted: like a plain dropdown, Enter leaves it as it is and moves on (or saves, on the last field)
+        close();
+        setTimeout(() => (enterSubmit ? saveForm() : focusNextField(triggerRef.current)), 0);
       }
     } else if (event.key === 'Escape') {
       // Esc closes this list, not the popup around it
@@ -96,6 +124,16 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
     }
   };
 
+  // hideSearch: typing jumps to the first option whose name, tags or extra search text has what was typed
+  const jumpTo = (key) => {
+    const now = Date.now();
+    const text = (now - typed.current.at < 800 ? typed.current.text : '') + key;
+    typed.current = { text, at: now };
+    const needle = squash(text);
+    const index = options.findIndex((option) => !option.empty && squash(`${option.label} ${option.tags || ''} ${option.search || ''}`).includes(needle));
+    if (index >= 0) setActive(index);
+  };
+
   const labelClass = mono ? 'font-mono font-semibold text-slate-900' : 'font-semibold text-slate-900';
 
   return (
@@ -104,12 +142,23 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
         ref={triggerRef}
         id={id}
         type="button"
-        className="input flex items-center justify-between gap-2 text-left"
+        disabled={disabled}
+        data-enter-submit={enterSubmit ? '' : undefined}
+        // coverField: see-through while open (not hidden, so it keeps the cursor and the arrow keys); the list covers it
+        className={`input flex items-center justify-between gap-2 text-left ${triggerClassName} ${coverField && open ? 'opacity-0' : ''}`}
+        aria-label={ariaLabel}
         onClick={() => (open ? close() : setOpen(true))}
         onKeyDown={(event) => {
           if (!open && (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ')) {
             event.preventDefault();
             setOpen(true);
+          } else if (open && hideSearch) {
+            if (event.key.length === 1 && /[a-z0-9]/i.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+              event.preventDefault();
+              jumpTo(event.key);
+            } else {
+              onSearchKey(event);
+            }
           }
         }}
         aria-haspopup="listbox"
@@ -139,24 +188,26 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
       )}
 
       {open && (
-        <div className="absolute left-0 right-0 z-50 mt-1 min-w-[14rem] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
-          <div className="relative border-b border-slate-100 p-2">
-            <Search size={14} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              ref={searchRef}
-              className="w-full rounded-md bg-slate-50 py-1.5 pl-7 pr-2 text-sm text-slate-800 outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:ring-primary-500"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setActive(0);
-              }}
-              onKeyDown={onSearchKey}
-              placeholder={searchPlaceholder}
-              autoComplete="off"
-            />
-          </div>
+        <div className={`absolute z-50 min-w-[14rem] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl ${coverField ? 'top-0' : 'mt-1'} ${menuAlign === 'right' ? 'right-0' : 'left-0 right-0'}`}>
+          {!hideSearch && (
+            <div className="relative border-b border-slate-100 p-2">
+              <Search size={14} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchRef}
+                className="w-full rounded-md bg-slate-50 py-1.5 pl-7 pr-2 text-sm text-slate-800 outline-none ring-1 ring-slate-200 placeholder:text-slate-400 focus:ring-primary-500"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setActive(0);
+                }}
+                onKeyDown={onSearchKey}
+                placeholder={searchPlaceholder}
+                autoComplete="off"
+              />
+            </div>
+          )}
           <ul ref={listRef} role="listbox" className="max-h-64 overflow-y-auto py-1">
-            {options.length === 0 && <li className="px-3 py-3 text-center text-sm text-slate-500">Nothing matches &ldquo;{query}&rdquo;</li>}
+            {options.length === 0 && <li className="px-3 py-3 text-center text-sm text-slate-500">{query ? <>Nothing matches &ldquo;{query}&rdquo;</> : 'Nothing to pick yet'}</li>}
             {options.map((option, index) => {
               const isPicked = option.value === (value || '');
               return (
@@ -191,7 +242,8 @@ function SearchSelect({ items, value, onChange, allowEmpty = false, emptyLabel, 
 const vehicleTags = (vehicle) => `${getCategoryLabel(vehicle.category)}${vehicle.ownership === 'hired' ? ' · Hired' : ''}${vehicle.status === 'sold' ? ' · Sold' : ''}`;
 
 // Vehicle dropdown with search: "CG04AB1234 · Truck · Hired"; type part of the number or the type
-export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, emptyLabel = 'Select vehicle', id, required = false, includeSold = false, openSignal = 0 }) {
+// hideSearch: see SearchSelect (the Add Trip form's dropdowns)
+export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, emptyLabel = 'Select vehicle', id, required = false, includeSold = false, openSignal = 0, hideSearch = false, coverField = false }) {
   const items = useMemo(
     () => vehicles
       .filter((vehicle) => includeSold || vehicle.status !== 'sold' || vehicle._id === value)
@@ -210,12 +262,14 @@ export function VehicleSelect({ vehicles, value, onChange, allowEmpty = false, e
       searchPlaceholder="Search vehicle no."
       mono
       openSignal={openSignal}
+      hideSearch={hideSearch}
+      coverField={coverField}
     />
   );
 }
 
 // Party dropdown with search by name or mobile; the preferred types are listed first
-export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty = false, emptyLabel = 'Select party', id, required = false, openSignal = 0 }) {
+export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty = false, emptyLabel = 'Select party', id, required = false, openSignal = 0, hideSearch = false, coverField = false }) {
   const items = useMemo(() => {
     const rank = (party) => (prefer.includes(party.type) ? 0 : 1);
     return [...parties]
@@ -234,12 +288,15 @@ export function PartySelect({ parties, value, onChange, prefer = [], allowEmpty 
       required={required}
       searchPlaceholder="Search party name or mobile"
       openSignal={openSignal}
+      hideSearch={hideSearch}
+      coverField={coverField}
     />
   );
 }
 
 // Driver dropdown with search, like the vehicle one: "Ramesh · CG04AB1234"; type part of the name, mobile or vehicle no.
-export function DriverSelect({ drivers, value, onChange, allowEmpty = true, emptyLabel = 'Select driver', id, openSignal = 0 }) {
+// coverField: see SearchSelect (Add Trip: the open list shows in the field's place)
+export function DriverSelect({ drivers, value, onChange, allowEmpty = true, emptyLabel = 'Select driver', id, openSignal = 0, hideSearch = false, coverField = false }) {
   const items = useMemo(
     () => drivers.map((driver) => ({
       value: driver._id,
@@ -259,6 +316,42 @@ export function DriverSelect({ drivers, value, onChange, allowEmpty = true, empt
       id={id}
       searchPlaceholder="Search driver name or vehicle no."
       openSignal={openSignal}
+      hideSearch={hideSearch}
+      coverField={coverField}
+    />
+  );
+}
+
+/**
+ * A fixed list (charge type, payment mode, status…) in the same dropdown style as the pickers above,
+ * with no search box: options [{ value, label, tags? }] (tags: small grey text after the label). allowEmpty: emptyLabel
+ * is a choice of its own (value ''); otherwise it is only shown until something is picked.
+ */
+export function OptionSelect({
+  options, value, onChange, allowEmpty = false, emptyLabel = 'Select', id, required = false, openSignal = 0, triggerClassName = '', ariaLabel, menuAlign, coverField = false,
+  disabled = false, enterSubmit = false,
+}) {
+  return (
+    <SearchSelect
+      items={options}
+      value={value}
+      // Like a plain dropdown: picking what is already picked changes nothing
+      onChange={(next) => {
+        if (next !== (value ?? '')) onChange(next);
+      }}
+      allowEmpty={allowEmpty}
+      emptyLabel={emptyLabel}
+      id={id}
+      required={required}
+      openSignal={openSignal}
+      hideSearch
+      noDefaultPick
+      triggerClassName={triggerClassName}
+      ariaLabel={ariaLabel}
+      menuAlign={menuAlign}
+      coverField={coverField}
+      disabled={disabled}
+      enterSubmit={enterSubmit}
     />
   );
 }

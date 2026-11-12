@@ -11,7 +11,7 @@ import FormSection, { AddLink, FieldGrid } from './FormSection';
 import MaterialPopup from './MaterialPopup';
 import PartyPopup from './PartyPopup';
 import EmployeePopup from './payroll/EmployeePopup';
-import { DriverSelect, PartySelect, VehicleSelect } from './Pickers';
+import { DriverSelect, OptionSelect, PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 import VehiclePopup from './VehiclePopup';
 
@@ -36,6 +36,20 @@ const RECEIVED_MODES = [
   { value: 'bank', label: 'Bank' },
   { value: 'cheque', label: 'Cheque' },
 ];
+
+// How the supplier was paid for material, and the trip's status, for their dropdowns
+const MATERIAL_COST_MODES = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'bank', label: 'Bank' },
+];
+const TRIP_STATUSES = [
+  { value: 'planned', label: 'Planned' },
+  { value: 'running', label: 'On the way' },
+  { value: 'completed', label: 'Completed' },
+];
+// Paying the owner of a hired vehicle: monthly hire (nothing per trip) or per trip / km / ton…
+const HIRE_PAY_OPTIONS = TRIP_BASIS_OPTIONS.map((option) => ({ value: option.value, label: `Pay ${option.label}` }));
 
 // The kinds of spend on the way, for now
 // Picking "Other" asks for the expense's own name, which is saved as its type
@@ -429,13 +443,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
             <Field label="Vehicle" required actionNextToLabel action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
-              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => pickVehicle(value)} required openSignal={vehicleSignal} />
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => pickVehicle(value)} required openSignal={vehicleSignal} hideSearch coverField />
             </Field>
             <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
-              <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} />
+              <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} hideSearch coverField />
             </Field>
             <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty('partyId')}>New Party</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required openSignal={billToSignal} />
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required openSignal={billToSignal} hideSearch coverField />
             </Field>
           </FieldGrid>
         </FormSection>
@@ -472,10 +486,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
           <div className={`grid gap-3 md:gap-4 ${basis === 'per_ton_km' ? 'grid-cols-2 sm:grid-cols-4' : askQuantity ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'}`}>
             {/* How the party is charged, then the rate, then how much */}
             <Field label="Charge By" required htmlFor="trip-basis">
-              {/* A plain dropdown; Enter from To opens its list (data-open-on-enter), picking moves on to the rate */}
-              <select id="trip-basis" className="input" value={basis} onChange={(event) => changeBasis(event.target.value)} required data-open-on-enter="">
-                {CHARGE_TYPES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              {/* Enter from To opens its list; picking with Enter moves on to the rate */}
+              <OptionSelect id="trip-basis" options={CHARGE_TYPES} value={basis} onChange={changeBasis} required coverField />
             </Field>
             <Field label={basis === 'per_trip' ? 'Trip Amount' : basis === 'per_ton_km' ? 'Rate per Ton per KM' : basis === 'per_cft' ? 'Rate per Cubic Foot' : `Rate per ${unit}`} required>
               <MoneyInput value={form.rate} onChange={(value) => set('rate', value)} suffix={unit ? `/${unit}` : ''} required />
@@ -528,13 +540,10 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
               {/* What, and where it was bought */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
                 <Field label="Which material" required htmlFor="trip-material" actionNextToLabel action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
-                  <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
-                    <option value="">Select material</option>
-                    {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-                  </select>
+                  <OptionSelect id="trip-material" options={materialOptions.map((name) => ({ value: name, label: name }))} value={form.material} onChange={(value) => set('material', value)} emptyLabel="Select material" required coverField />
                 </Field>
                 <Field label="Bought From" hint="The party you bought it from, or Cash" actionNextToLabel action={<AddLink onClick={() => setAddingParty('materialSupplierId')}>Add Party</AddLink>}>
-                  <PartySelect parties={parties} value={form.materialSupplierId} onChange={(value) => set('materialSupplierId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
+                  <PartySelect parties={parties} value={form.materialSupplierId} onChange={(value) => set('materialSupplierId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" hideSearch coverField />
                 </Field>
               </div>
 
@@ -556,11 +565,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
                   </Field>
                   {materialCostPaid > 0 && (
                     <Field label="Paid By" htmlFor="trip-material-mode">
-                      <select id="trip-material-mode" className="input" value={form.materialCostMode} onChange={(event) => set('materialCostMode', event.target.value)}>
-                        <option value="cash">Cash</option>
-                        <option value="upi">UPI</option>
-                        <option value="bank">Bank</option>
-                      </select>
+                      <OptionSelect id="trip-material-mode" options={MATERIAL_COST_MODES} value={form.materialCostMode} onChange={(value) => set('materialCostMode', value)} coverField />
                     </Field>
                   )}
                 </div>
@@ -609,9 +614,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             {/* Which way the money came only matters when some was paid */}
             {received > 0 && (
               <Field label="Received In" htmlFor="trip-received-mode">
-                <select id="trip-received-mode" className="input" value={form.receivedMode} onChange={(event) => set('receivedMode', event.target.value)}>
-                  {RECEIVED_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                <OptionSelect id="trip-received-mode" options={RECEIVED_MODES} value={form.receivedMode} onChange={(value) => set('receivedMode', value)} coverField />
               </Field>
             )}
           </div>
@@ -634,10 +637,17 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             tone="amber"
             title={`Owner Payment · ${vehicle?.ownerPartyId?.name || 'Hired vehicle'}`}
             action={(
-              <select className="input h-9 min-h-0 w-auto py-0 text-xs md:text-sm" value={form.hireBasis} onChange={(event) => set('hireBasis', event.target.value)} aria-label="Pay owner">
-                <option value="">Monthly hire (no trip pay)</option>
-                {TRIP_BASIS_OPTIONS.map((option) => <option key={option.value} value={option.value}>Pay {option.label}</option>)}
-              </select>
+              <OptionSelect
+                options={HIRE_PAY_OPTIONS}
+                value={form.hireBasis}
+                onChange={(value) => set('hireBasis', value)}
+                allowEmpty
+                emptyLabel="Monthly hire (no trip pay)"
+                ariaLabel="Pay owner"
+                triggerClassName="h-9 min-h-0 w-auto py-0 text-xs md:text-sm"
+                menuAlign="right"
+                coverField
+              />
             )}
           >
             {form.hireBasis ? (
@@ -681,13 +691,15 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
               <div key={index} className="space-y-1.5">
                 <div className={`grid items-end gap-2 sm:gap-3 ${form.expenses.length > 1 ? 'grid-cols-[1fr_1fr_auto]' : 'grid-cols-2'}`}>
                   <Field label="Expense Type" htmlFor={`trip-expense-${index}`}>
-                    <select id={`trip-expense-${index}`} className="input" value={row.category} onChange={(event) => pickExpenseType(index, event.target.value)}>
-                      <option value="">Select type</option>
-                      {/* An older trip may hold a type no longer listed */}
-                      {[...EXPENSE_TYPES, ...(row.category && !EXPENSE_TYPES.includes(row.category) ? [row.category] : [])].map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
+                    {/* An older trip (or a named "Other") may hold a type not in the list: it is listed too */}
+                    <OptionSelect
+                      id={`trip-expense-${index}`}
+                      options={[...EXPENSE_TYPES, ...(row.category && !EXPENSE_TYPES.includes(row.category) ? [row.category] : [])].map((type) => ({ value: type, label: type }))}
+                      value={row.category}
+                      onChange={(value) => pickExpenseType(index, value)}
+                      emptyLabel="Select type"
+                      coverField
+                    />
                   </Field>
                   <Field label="Amount">
                     <MoneyInput value={row.amount} onChange={(value) => setExpense(index, 'amount', value)} />
@@ -737,12 +749,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
         {/* 6 or 7. Other details */}
         <FormSection number={isHired ? 7 : 6} title="Other Details" tone="slate">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
-            <Field label="Status">
-              <select className="input" value={form.status} onChange={(event) => set('status', event.target.value)}>
-                <option value="planned">Planned</option>
-                <option value="running">On the way</option>
-                <option value="completed">Completed</option>
-              </select>
+            <Field label="Status" htmlFor="trip-status">
+              <OptionSelect id="trip-status" options={TRIP_STATUSES} value={form.status} onChange={(value) => set('status', value)} coverField />
             </Field>
             <Field label="LR No. / Notes" htmlFor="trip-notes" className="sm:col-span-2">
               <textarea id="trip-notes" rows={2} className="input resize-none" value={form.notes} onChange={(event) => set('notes', event.target.value)} placeholder="LR number or any additional notes…" />
@@ -778,7 +786,7 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Vehicle Number" required hint={form.vehicleId ? "This trip's vehicle (change it in Trip Details)" : 'Also becomes this trip’s vehicle'}>
               {form.vehicleId
                 ? <div className="input flex items-center bg-slate-50 font-mono font-semibold text-slate-900">{vehicle?.vehicleNo || '—'}</div>
-                : <VehicleSelect vehicles={vehicles} value={puncture.vehicleId} onChange={(value) => setPuncture((prev) => ({ ...prev, vehicleId: value }))} required />}
+                : <VehicleSelect vehicles={vehicles} value={puncture.vehicleId} onChange={(value) => setPuncture((prev) => ({ ...prev, vehicleId: value }))} required hideSearch coverField />}
             </Field>
             <Field label="Trip" hint="The puncture is saved with this trip">
               <div className="input flex items-center gap-2 bg-slate-50 text-slate-900">

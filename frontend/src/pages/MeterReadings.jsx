@@ -92,6 +92,8 @@ export function ReadingPopup({ reading = null, preset = {}, onClose, onSaved }) 
             if (!reading) setOpeningTouched(false);
           }}
           required
+          hideSearch
+          coverField
         />
       </Field>
       <Field label="Date" required htmlFor="mr-date">

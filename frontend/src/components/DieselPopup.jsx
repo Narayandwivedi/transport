@@ -7,7 +7,7 @@ import { formatMeter, meterUnitOf } from '../utils/meter';
 import FormPopup from './FormPopup';
 import FormSection, { AddLink, FieldGrid } from './FormSection';
 import PartyPopup from './PartyPopup';
-import { PartySelect, VehicleSelect } from './Pickers';
+import { OptionSelect, PartySelect, VehicleSelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 import VehiclePopup from './VehiclePopup';
 import { useAuth } from '../context/AuthContext';
@@ -150,10 +150,10 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
               <input id="dsl-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
             <Field label="Vehicle" required actionNextToLabel action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>Add Vehicle</AddLink>} hint={vehicle?.currentKm ? `Meter now: ${formatMeter(vehicle.currentKm, vehicle)}` : ''}>
-              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required />
+              <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={pickVehicle} required hideSearch coverField />
             </Field>
             <Field label="Diesel From" hint="Cash, a petrol pump, or any party who gave you diesel" actionNextToLabel action={<AddLink onClick={() => setAddingPump(true)}>New Pump</AddLink>}>
-              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
+              <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" hideSearch coverField />
             </Field>
             <Field label="Pump Bill / Slip No." htmlFor="dsl-bill">
               <input id="dsl-bill" className="input" value={form.billNo} onChange={(event) => set('billNo', event.target.value)} placeholder="Optional" />
@@ -163,14 +163,20 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
 
         <FormSection number={2} title="For Trip" tone="sky" hint="Which trip this diesel was filled for. Pick No Trip when the vehicle is not on one.">
           <Field label="Trip" htmlFor="dsl-trip" hint={tripsLoading ? 'Loading trips…' : form.vehicleId && !allTrips.length ? 'No trips for this vehicle yet' : ''}>
-            <select id="dsl-trip" className="input" value={form.tripId} onChange={(event) => set('tripId', event.target.value)} disabled={!form.vehicleId}>
-              <option value="">{form.vehicleId ? 'No Trip (filled without a trip)' : 'Pick the vehicle first'}</option>
-              {tripChoices.map((trip) => (
-                <option key={trip._id} value={trip._id}>
-                  {trip.tripNo} · {formatDate(trip.date)} · {trip.from || '—'} → {trip.to || '—'}{trip.partyId?.name ? ` · ${trip.partyId.name}` : ''}{STATUS_TAG[trip.status] || ''}
-                </option>
-              ))}
-            </select>
+            <OptionSelect
+              id="dsl-trip"
+              options={tripChoices.map((trip) => ({
+                value: trip._id,
+                label: trip.tripNo,
+                tags: `${formatDate(trip.date)} · ${trip.from || '—'} → ${trip.to || '—'}${trip.partyId?.name ? ` · ${trip.partyId.name}` : ''}${STATUS_TAG[trip.status] || ''}`,
+              }))}
+              value={form.tripId}
+              onChange={(value) => set('tripId', value)}
+              allowEmpty
+              emptyLabel={form.vehicleId ? 'No Trip (filled without a trip)' : 'Pick the vehicle first'}
+              disabled={!form.vehicleId}
+              coverField
+            />
           </Field>
         </FormSection>
 
@@ -211,9 +217,7 @@ export default function DieselPopup({ entry = null, preset = {}, onClose, onSave
             {/* How it was paid only matters when something was paid */}
             {paid > 0 && (
               <Field label="Paid By" htmlFor="dsl-mode">
-                <select id="dsl-mode" className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)} data-enter-submit="">
-                  {PAY_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                <OptionSelect id="dsl-mode" options={PAY_MODES} value={form.mode} onChange={(value) => set('mode', value)} enterSubmit coverField />
               </Field>
             )}
           </div>

@@ -7,7 +7,7 @@ import { idOf, toDayInput, todayInput } from '../utils/format';
 import FormPopup from './FormPopup';
 import FormSection, { FieldGrid } from './FormSection';
 import Segmented from './Segmented';
-import { PartySelect } from './Pickers';
+import { OptionSelect, PartySelect } from './Pickers';
 import { Field, MoneyInput } from './ui';
 
 // Money received from a party, or paid to a party
@@ -52,16 +52,14 @@ export default function PaymentPopup({ payment = null, preset = {}, onClose, onS
             <MoneyInput value={form.amount} onChange={(value) => set('amount', value)} required />
           </Field>
           <Field label={form.type === 'received' ? 'Received From' : 'Paid To'} required className="sm:col-span-2">
-            <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={form.type === 'received' ? ['customer'] : ['supplier']} required />
+            <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={form.type === 'received' ? ['customer'] : ['supplier']} required hideSearch coverField />
           </Field>
         </FieldGrid>
       </FormSection>
       <FormSection number={2} title="Mode & Reference" tone="slate">
         <FieldGrid cols={2}>
-          <Field label="Mode">
-            <select className="input" value={form.mode} onChange={(event) => set('mode', event.target.value)}>
-              {PAYMENT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+          <Field label="Mode" htmlFor="pay-mode">
+            <OptionSelect id="pay-mode" options={PAYMENT_MODE_OPTIONS} value={form.mode} onChange={(value) => set('mode', value)} coverField />
           </Field>
           <Field label="Reference / Cheque No." htmlFor="pay-ref">
             <input id="pay-ref" className="input" value={form.reference} onChange={(event) => set('reference', event.target.value)} placeholder="UTR, cheque no.…" />
