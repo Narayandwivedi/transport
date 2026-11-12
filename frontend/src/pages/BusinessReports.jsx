@@ -176,20 +176,40 @@ const matches = (query, ...values) => !query || values.some((value) => String(va
 /* ───────────── Diesel ───────────── */
 
 function DieselReport({ period }) {
-  const { data, loading, error } = useFetch('/reports/diesel', periodParams(period), null);
+  // The vehicle filter goes to the server, so the cards, tables and totals are all for that vehicle
   const [vehicleId, setVehicleId] = useState('');
+  const { data, loading, error } = useFetch('/reports/diesel', { ...periodParams(period), ...(vehicleId ? { vehicleId } : {}) }, null);
+  const { data: vehicleList } = useFetch('/vehicles', {}, []);
   const [search, setSearch] = useState('');
-  if (loading && !data) return <Loading />;
-  if (!data) return <ErrorBox message={error} />;
+  const vehicles = Array.isArray(vehicleList) ? vehicleList : [];
+  const chosenNo = vehicles.find((item) => item._id === vehicleId)?.vehicleNo || '';
+
+  const filter = (
+    <section className="no-print flex flex-wrap items-center gap-2">
+      <div className="w-full sm:w-72">
+        <VehicleSelect vehicles={vehicles} value={vehicleId} onChange={setVehicleId} allowEmpty emptyLabel="All Vehicles" includeSold id="diesel-vehicle" />
+      </div>
+      {vehicleId && <button type="button" className="btn-secondary btn-sm" onClick={() => setVehicleId('')}><X size={14} /> Clear Filter</button>}
+      {loading && data && <span className="text-xs text-slate-400">Updating…</span>}
+    </section>
+  );
+
+  if (loading && !data) return <>{filter}<Loading /></>;
+  if (!data) return <>{filter}<ErrorBox message={error} /></>;
   const { totals, byVehicle, byPump, entries } = data;
   const maxLitres = Math.max(...byVehicle.map((row) => row.litres), 0);
-  const chosen = byVehicle.find((row) => row.vehicleId === vehicleId);
   const query = search.trim().toLowerCase();
-  const shown = (vehicleId ? entries.filter((row) => row.vehicleId === vehicleId) : entries)
-    .filter((row) => matches(query, row.vehicleNo, row.pump, row.tripNo, row.entryNo));
+  const shown = entries.filter((row) => matches(query, row.vehicleNo, row.pump, row.tripNo, row.entryNo));
+  // Totals of the entries listed (all of the vehicle's, or what the search leaves)
+  const shownTotals = {
+    litres: shown.reduce((sum, row) => sum + toNumber(row.litres), 0),
+    amount: shown.reduce((sum, row) => sum + toNumber(row.amount), 0),
+    due: shown.reduce((sum, row) => sum + Math.max(0, toNumber(row.amount) - toNumber(row.paid)), 0),
+  };
 
   return (
     <>
+      {filter}
       <ErrorBox message={error} />
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <StatCard compact icon={Fuel} tone="amber" label="Diesel Issued" value={litres(totals.litres)} hint={`${totals.fills} fills`} />
@@ -249,26 +269,28 @@ function DieselReport({ period }) {
       </Panel>
 
       <Panel
-        title={chosen ? `Diesel Entries · ${chosen.vehicleNo}` : 'All Diesel Entries'}
+        title={vehicleId ? `Diesel Entries · ${chosenNo}` : 'All Diesel Entries'}
         count={shown.length}
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search vehicle, pump, trip"
         exportName="diesel-entries"
-        actions={chosen && <button type="button" className="btn-secondary btn-sm no-print" onClick={() => setVehicleId('')}><X size={14} /> All vehicles</button>}
+        actions={vehicleId && <button type="button" className="btn-secondary btn-sm no-print" onClick={() => setVehicleId('')}><X size={14} /> All vehicles</button>}
       >
         <ReportTable
           rows={shown}
           rowKey={(row) => row.id}
+          totals={shownTotals}
+          empty={vehicleId ? 'No diesel for this vehicle in this period' : 'No diesel filled in this period'}
           columns={[
             { key: 'date', label: 'Date', main: true, render: (row) => <span><span className="font-semibold text-slate-800">{formatDate(row.date)}</span><span className="ml-2 font-mono text-[11px] text-slate-400">{row.entryNo}</span></span> },
             { key: 'vehicle', label: 'Vehicle', render: (row) => <span className="font-mono">{row.vehicleNo}</span> },
-            { key: 'pump', label: 'Pump', render: (row) => row.pump || '—' },
-            { key: 'trip', label: 'Trip', render: (row) => row.tripNo || '—', phoneHide: true },
-            { key: 'litres', label: 'Litres', align: 'right', render: (row) => litres(row.litres) },
-            { key: 'rate', label: 'Rate', align: 'right', render: (row) => formatRupees(row.rate) },
-            { key: 'amount', label: 'Amount', align: 'right', primary: true, render: (row) => formatRupees(row.amount) },
-            { key: 'due', label: 'Due', align: 'right', render: (row) => <Due value={Math.max(0, row.amount - row.paid)} /> },
+            { key: 'pump', label: 'Pump', render: (row) => row.pump || '—', phoneHide: true },
+            { key: 'trip', label: 'Trip', render: (row) => (row.tripNo ? <span className="font-mono">{row.tripNo}</span> : '—'), phoneText: (row) => row.tripNo || '—' },
+            { key: 'litres', label: 'Litres', align: 'right', render: (row) => litres(row.litres), total: (t) => litres(t.litres) },
+            { key: 'rate', label: 'Rate', align: 'right', render: (row) => formatRupees(row.rate), total: (t) => (t.litres ? formatRupees(t.amount / t.litres) : '—') },
+            { key: 'amount', label: 'Amount', align: 'right', primary: true, render: (row) => formatRupees(row.amount), total: (t) => formatRupees(t.amount) },
+            { key: 'due', label: 'Due', align: 'right', render: (row) => <Due value={Math.max(0, row.amount - row.paid)} />, total: (t) => <Due value={t.due} /> },
           ]}
         />
       </Panel>

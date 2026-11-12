@@ -39,7 +39,10 @@ const mileage = async (req, res) => {
 // Reports page: ?from=&to= days or ?month=YYYY-MM
 const dieselReport = async (req, res) => {
   const { from, to } = periodFrom(req.query);
-  res.json(await business.dieselReport(req.userId, from, to));
+  // ?vehicleId= shows one vehicle's diesel only
+  const { vehicleId } = req.query;
+  if (vehicleId && !mongoose.isValidObjectId(vehicleId)) return res.status(400).json({ message: "Wrong value for vehicle" });
+  res.json(await business.dieselReport(req.userId, from, to, vehicleId || null));
 };
 const tripReport = async (req, res) => {
   const { from, to } = periodFrom(req.query);

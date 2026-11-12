@@ -18,8 +18,9 @@ const sortedBy = (map, field) => [...map.values()].sort((a, b) => b[field] - a[f
 // What was paid at the pump; entries saved before paidAmount existed count as paid in full
 const dieselPaid = (fill) => (fill.paidAmount === null || fill.paidAmount === undefined ? toNumber(fill.amount) : toNumber(fill.paidAmount));
 
-const dieselReport = async (userId, from, to) => {
-  const fills = await DieselEntry.find({ userId, ...inPeriod(from, to) })
+// vehicleId: only that vehicle's fills (its totals, pumps and entries)
+const dieselReport = async (userId, from, to, vehicleId = null) => {
+  const fills = await DieselEntry.find({ userId, ...(vehicleId ? { vehicleId } : {}), ...inPeriod(from, to) })
     .sort({ date: -1, createdAt: -1 })
     .populate("vehicleId", "vehicleNo")
     .populate("partyId", "name")
