@@ -382,7 +382,10 @@ function LedgerPanel({ partyId, onClose }) {
                       <p className="font-semibold text-slate-800">{row.kind}</p>
                       {row.ref && <p className="font-mono text-[11px] text-slate-400">{row.ref}</p>}
                     </td>
-                    <td className={`${td} max-w-[16rem] truncate text-slate-600`} title={row.details}>{row.details || '—'}</td>
+                    <td className={`${td} max-w-[16rem] text-slate-600`} title={row.details}>
+                      {row.vehicleNo && <p className="truncate font-mono font-semibold text-slate-800">{row.vehicleNo}</p>}
+                      <p className="truncate">{row.details || '—'}</p>
+                    </td>
                     <td className={`${td} text-right tabular-nums text-blue-700`}>{row.debit ? formatRupees(row.debit) : ''}</td>
                     <td className={`${td} text-right tabular-nums text-amber-700`}>{row.credit ? formatRupees(row.credit) : ''}</td>
                     <td className={`${td} whitespace-nowrap text-right font-semibold tabular-nums ${row.balance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{balanceText(row.balance)}</td>
@@ -399,7 +402,7 @@ function LedgerPanel({ partyId, onClose }) {
                   <span className={`shrink-0 text-[13px] font-bold tabular-nums ${row.debit ? 'text-blue-700' : 'text-amber-700'}`}>{row.debit ? `+${formatRupees(row.debit)}` : `−${formatRupees(row.credit)}`}</span>
                 </div>
                 <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[11px] text-slate-500">
-                  <span className="min-w-0 truncate">{[row.ref, row.details].filter(Boolean).join(' · ') || '—'}</span>
+                  <span className="min-w-0 truncate">{[row.ref, row.vehicleNo, row.details].filter(Boolean).join(' · ') || '—'}</span>
                   <span className={`shrink-0 font-semibold ${row.balance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{balanceText(row.balance)}</span>
                 </div>
               </div>

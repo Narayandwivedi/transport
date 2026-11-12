@@ -238,7 +238,9 @@ const partyLedger = async (userId, partyId, asOf = new Date()) => {
       date: fill.date,
       kind: "Diesel Taken",
       ref,
-      details: `${fill.vehicleId?.vehicleNo || ""} · ${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`.trim(),
+      // Shown as two lines: the vehicle on top, litres × rate below
+      vehicleNo: fill.vehicleId?.vehicleNo || "",
+      details: `${toNumber(fill.litres)} ltr × ₹${toNumber(fill.rate)}`,
       debit: 0,
       credit: toNumber(fill.amount),
     });

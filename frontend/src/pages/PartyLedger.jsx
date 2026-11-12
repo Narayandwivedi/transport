@@ -75,7 +75,10 @@ export default function PartyLedger() {
                       <p className="font-semibold text-slate-800">{row.kind}</p>
                       {row.ref && <p className="font-mono text-[11px] text-slate-500">{row.ref}</p>}
                     </td>
-                    <td className={`${TD} text-slate-600`}>{row.details || '—'}</td>
+                    <td className={`${TD} text-slate-600`}>
+                      {row.vehicleNo && <p className="font-mono font-semibold text-slate-800">{row.vehicleNo}</p>}
+                      <p>{row.details || '—'}</p>
+                    </td>
                     <td className={`${TD} text-right text-blue-700`}>{row.debit ? formatRupees(row.debit) : ''}</td>
                     <td className={`${TD} text-right text-amber-700`}>{row.credit ? formatRupees(row.credit) : ''}</td>
                     <td className={`${TD} whitespace-nowrap text-right font-semibold ${row.balance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{balanceText(row.balance)}</td>
