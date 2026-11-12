@@ -126,7 +126,8 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
   // Staff pick from the drivers the owner added; they cannot add one
   const { isStaff } = useAuth();
   const [form, setForm] = useState(() => (trip ? fromTrip(trip) : { ...EMPTY, ...preset }));
-  const [addingParty, setAddingParty] = useState(false);
+  // Which field a new party is added for: Bill To ('partyId') or Bought From ('materialSupplierId')
+  const [addingParty, setAddingParty] = useState(null);
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [saving, setSaving] = useState(false);
   // Materials we supply, for the dropdown when we supply material
@@ -359,13 +360,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <Field label="Date" required htmlFor="trip-date">
               <input id="trip-date" type="date" className="input" value={form.date} onChange={(event) => set('date', event.target.value)} required />
             </Field>
-            <Field label="Vehicle" required action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
+            <Field label="Vehicle" required actionNextToLabel action={!isStaff && <AddLink onClick={() => setAddingVehicle(true)}>New Vehicle</AddLink>}>
               <VehicleSelect vehicles={vehicles} value={form.vehicleId} onChange={(value) => pickVehicle(value)} required openSignal={vehicleSignal} />
             </Field>
             <Field label="Driver" htmlFor="trip-driver" action={!isStaff && <AddLink onClick={() => setAddingDriver(true)}>New Driver</AddLink>}>
               <DriverSelect id="trip-driver" drivers={driverOptions} value={form.driverId} onChange={pickDriver} emptyLabel="No driver" openSignal={driverSignal} />
             </Field>
-            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty(true)}>New Party</AddLink>}>
+            <Field label="Bill To" required action={<AddLink onClick={() => setAddingParty('partyId')}>New Party</AddLink>}>
               <PartySelect parties={parties} value={form.partyId} onChange={(value) => set('partyId', value)} prefer={['customer']} required openSignal={billToSignal} />
             </Field>
           </FieldGrid>
@@ -458,13 +459,13 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
             <>
               {/* What, and where it was bought */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
-                <Field label="Which material" required htmlFor="trip-material" action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
+                <Field label="Which material" required htmlFor="trip-material" actionNextToLabel action={<AddLink onClick={() => setAddingMaterial(true)}>New Material</AddLink>}>
                   <select id="trip-material" className="input" value={form.material} onChange={(event) => set('material', event.target.value)} required>
                     <option value="">Select material</option>
                     {materialOptions.map((name) => <option key={name} value={name}>{name}</option>)}
                   </select>
                 </Field>
-                <Field label="Bought From" hint="The party you bought it from, or Cash">
+                <Field label="Bought From" hint="The party you bought it from, or Cash" actionNextToLabel action={<AddLink onClick={() => setAddingParty('materialSupplierId')}>Add Party</AddLink>}>
                   <PartySelect parties={parties} value={form.materialSupplierId} onChange={(value) => set('materialSupplierId', value)} prefer={['supplier']} allowEmpty emptyLabel="Cash" />
                 </Field>
               </div>
@@ -697,10 +698,12 @@ export default function TripPopup({ trip = null, preset = {}, onClose, onSaved }
 
       {addingParty && (
         <PartyPopup
-          onClose={() => setAddingParty(false)}
+          // A party added for Bought From starts as a supplier
+          defaultType={addingParty === 'materialSupplierId' ? 'supplier' : 'customer'}
+          onClose={() => setAddingParty(null)}
           onSaved={async (party) => {
             await reloadMasters();
-            set('partyId', party._id);
+            if (party?._id) set(addingParty, party._id);
           }}
         />
       )}

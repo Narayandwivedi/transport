@@ -72,11 +72,12 @@ export function PanelHeader({ title, count, search, onSearch, searchPlaceholder 
 
 // Label + control in one block
 // A labelled form field. required: shows a red * after the label. action: a small link at the label's right (e.g. "+ Add").
-export function Field({ label, htmlFor, hint, required = false, action, className = '', children }) {
+// actionNextToLabel: the link sits right after the label instead of at the far right.
+export function Field({ label, htmlFor, hint, required = false, action, actionNextToLabel = false, className = '', children }) {
   return (
     <div className={className}>
       {label && (
-        <div className="mb-1 flex items-center justify-between gap-2">
+        <div className={`mb-1 flex items-center gap-2 ${actionNextToLabel ? 'justify-start' : 'justify-between'}`}>
           <label className="label mb-0" htmlFor={htmlFor}>
             {label}{required && <span className="text-red-500"> *</span>}
           </label>
