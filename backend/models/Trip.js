@@ -53,6 +53,8 @@ const tripSchema = new Schema(
         category: { type: String, trim: true, required: true },
         amount: money,
         notes: text,
+        // When it happened, if not on the trip's date (a tyre puncture records its own date)
+        date: { type: Date, default: null },
       },
     ],
     expenseTotal: money,

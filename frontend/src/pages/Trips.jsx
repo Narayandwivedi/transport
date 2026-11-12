@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HandCoins, IndianRupee, Pencil, Plus, Route, Trash2, TrendingUp, Truck } from 'lucide-react';
+import { Eye, HandCoins, IndianRupee, Pencil, Plus, Route, Trash2, TrendingUp, Truck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import apiClient from '../utils/api';
 import useFetch from '../utils/useFetch';
@@ -9,6 +9,7 @@ import { describeCharge } from '../utils/constants';
 import StatCard from '../components/StatCard';
 import MonthFilter from '../components/MonthFilter';
 import TripPopup from '../components/TripPopup';
+import TripDetailPopup from '../components/TripDetailPopup';
 import { VehicleSelect } from '../components/Pickers';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader, RowAction, TD, TH } from '../components/ui';
 
@@ -31,6 +32,8 @@ export default function Trips() {
   const [search, setSearch] = useState('');
   const [paymentType, setPaymentType] = useState('');
   const [editing, setEditing] = useState(null);
+  // The trip whose details are open (read-only)
+  const [viewingId, setViewingId] = useState(null);
   const { vehicles } = useMasters();
   const { data: trips, loading, error, reload } = useFetch('/trips', { ...monthBounds(month), vehicleId, search, paymentType }, []);
 
@@ -121,6 +124,7 @@ export default function Trips() {
                     <td className={TD}><span className={STATUS[trip.status]?.className}>{STATUS[trip.status]?.label}</span></td>
                     <td className={TD}>
                       <div className="flex justify-end">
+                        <RowAction title="View" icon={Eye} onClick={() => setViewingId(trip._id)} />
                         <RowAction title="Edit" icon={Pencil} onClick={() => setEditing(trip)} />
                         <RowAction title="Delete" icon={Trash2} tone="rose" onClick={() => handleDelete(trip)} />
                       </div>
@@ -133,6 +137,7 @@ export default function Trips() {
         )}
       </section>
 
+      {viewingId && <TripDetailPopup tripId={viewingId} onClose={() => setViewingId(null)} />}
       {editing && <TripPopup trip={editing._id ? editing : null} onClose={() => setEditing(null)} onSaved={reload} />}
     </Page>
   );

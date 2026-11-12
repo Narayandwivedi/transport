@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowDownLeft, ArrowUpRight, BookOpen, CalendarRange, ExternalLink, Fuel, Gauge, IndianRupee, Printer, Receipt,
-  Route, Scale, Wallet, X,
+  ArrowDownLeft, ArrowLeft, ArrowUpRight, BookOpen, Building2, CalendarClock, CalendarRange, ChevronRight, CircleDot, Download,
+  ExternalLink, Fuel, Gauge, HandCoins, IndianRupee, Printer, Receipt, Route, Scale, TrendingUp, Truck, Wallet, X,
 } from 'lucide-react';
 import useFetch from '../utils/useFetch';
-import { currentMonthInput, formatDate, formatMonth, formatNumber, formatRupees, monthBounds, todayInput } from '../utils/format';
-import { getPartyTypeLabel } from '../utils/constants';
+import { currentMonthInput, formatDate, formatMonth, formatNumber, formatRupees, monthBounds, todayInput, toNumber } from '../utils/format';
+import { PAYMENT_MODE_OPTIONS, getPartyTypeLabel } from '../utils/constants';
 import StatCard from '../components/StatCard';
+import { VehicleSelect } from '../components/Pickers';
 import MonthFilter from '../components/MonthFilter';
 import Segmented from '../components/Segmented';
 import { EmptyState, ErrorBox, Loading, Page, PageHeader, PanelHeader } from '../components/ui';
@@ -58,13 +59,15 @@ const Share = ({ value, max, tone = 'bg-blue-500' }) => (
 /**
  * A report table. Desktop: a normal table with a totals row. Phone: one compact row per entry —
  * the `main` column on the left, the `primary` column on the right, the rest as a small line below.
- * columns: [{ key, label, render(row), total?, align?, main?, primary?, phoneHide? }]
+ * columns: [{ key, label, render(row), total?, align?, main?, primary?, phoneHide?, phoneOnly? }]
  */
 function ReportTable({ columns, rows, totals, rowKey, onRowClick, selected, empty }) {
   if (!rows.length) return <EmptyState title={empty || 'Nothing in this period'} />;
   const mainCol = columns.find((col) => col.main) || columns[0];
   const primaryCol = columns.find((col) => col.primary);
   const others = columns.filter((col) => col !== mainCol && col !== primaryCol && !col.phoneHide);
+  // phoneOnly: a column for the phone's right side only (e.g. one signed amount in place of two desktop columns)
+  const desktopCols = columns.filter((col) => !col.phoneOnly);
   const th = 'px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 first:pl-4 last:pr-4';
   const td = 'px-3 py-2.5 first:pl-4 last:pr-4';
   return (
@@ -72,7 +75,7 @@ function ReportTable({ columns, rows, totals, rowKey, onRowClick, selected, empt
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-200 bg-slate-50">
-            <tr>{columns.map((col) => <th key={col.key} className={`${th} ${col.align === 'right' ? 'text-right' : 'text-left'}`}>{col.label}</th>)}</tr>
+            <tr>{desktopCols.map((col) => <th key={col.key} className={`${th} ${col.align === 'right' ? 'text-right' : 'text-left'}`}>{col.label}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => {
@@ -83,14 +86,14 @@ function ReportTable({ columns, rows, totals, rowKey, onRowClick, selected, empt
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={`${onRowClick ? 'cursor-pointer' : ''} ${selected === key ? 'bg-blue-50/70' : 'hover:bg-slate-50/80'}`}
                 >
-                  {columns.map((col) => <td key={col.key} className={`${td} ${col.align === 'right' ? 'text-right tabular-nums' : ''} whitespace-nowrap`}>{col.render(row)}</td>)}
+                  {desktopCols.map((col) => <td key={col.key} className={`${td} ${col.align === 'right' ? 'text-right tabular-nums' : ''} whitespace-nowrap`}>{col.render(row)}</td>)}
                 </tr>
               );
             })}
           </tbody>
           {totals && (
             <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-900">
-              <tr>{columns.map((col, index) => <td key={col.key} className={`${td} ${col.align === 'right' ? 'text-right tabular-nums' : ''} whitespace-nowrap`}>{index === 0 ? 'Total' : col.total ? col.total(totals) : ''}</td>)}</tr>
+              <tr>{desktopCols.map((col, index) => <td key={col.key} className={`${td} ${col.align === 'right' ? 'text-right tabular-nums' : ''} whitespace-nowrap`}>{index === 0 ? 'Total' : col.total ? col.total(totals) : ''}</td>)}</tr>
             </tfoot>
           )}
         </table>
@@ -132,25 +135,58 @@ function ReportTable({ columns, rows, totals, rowKey, onRowClick, selected, empt
 
 const Due = ({ value }) => (value > 0 ? <span className="font-semibold text-rose-700">{formatRupees(value)}</span> : <span className="text-slate-400">₹0</span>);
 
-const Panel = ({ title, count, hint, children, actions }) => (
-  <section className="panel">
-    <PanelHeader title={title} count={count}>{actions}</PanelHeader>
-    {children}
-    {hint && <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500 md:text-xs">{hint}</p>}
-  </section>
+/** Downloads the table inside `root` as a CSV file: the rows on screen, with the totals row. */
+const downloadTableCsv = (root, name) => {
+  const table = root?.querySelector('table');
+  if (!table) return;
+  const cell = (element) => `"${element.textContent.replace(/\s+/g, ' ').trim().replace(/"/g, '""')}"`;
+  const lines = [...table.querySelectorAll('tr')].map((row) => [...row.children].map(cell).join(','));
+  // The BOM lets Excel read ₹ and other characters correctly
+  const url = URL.createObjectURL(new Blob([`﻿${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${name}-${todayInput()}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+const ExportButton = ({ targetRef, name }) => (
+  <button type="button" className="btn-secondary btn-sm no-print" onClick={() => downloadTableCsv(targetRef.current, name)} title="Download as CSV (opens in Excel)">
+    <Download size={14} /> CSV
+  </button>
 );
+
+/** A report block. search/onSearch: a search box in its header. exportName: a CSV download of its table. */
+function Panel({ title, count, hint, children, actions, search, onSearch, searchPlaceholder, exportName }) {
+  const ref = useRef(null);
+  return (
+    <section className="panel" ref={ref}>
+      <PanelHeader title={title} count={count} search={search} onSearch={onSearch} searchPlaceholder={searchPlaceholder}>
+        {actions}
+        {exportName && <ExportButton targetRef={ref} name={exportName} />}
+      </PanelHeader>
+      {children}
+      {hint && <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500 md:text-xs">{hint}</p>}
+    </section>
+  );
+}
+
+// Matches a search box: any of the values contains the typed text
+const matches = (query, ...values) => !query || values.some((value) => String(value || '').toLowerCase().includes(query));
 
 /* ───────────── Diesel ───────────── */
 
 function DieselReport({ period }) {
   const { data, loading, error } = useFetch('/reports/diesel', periodParams(period), null);
   const [vehicleId, setVehicleId] = useState('');
+  const [search, setSearch] = useState('');
   if (loading && !data) return <Loading />;
   if (!data) return <ErrorBox message={error} />;
   const { totals, byVehicle, byPump, entries } = data;
   const maxLitres = Math.max(...byVehicle.map((row) => row.litres), 0);
   const chosen = byVehicle.find((row) => row.vehicleId === vehicleId);
-  const shown = vehicleId ? entries.filter((row) => row.vehicleId === vehicleId) : entries;
+  const query = search.trim().toLowerCase();
+  const shown = (vehicleId ? entries.filter((row) => row.vehicleId === vehicleId) : entries)
+    .filter((row) => matches(query, row.vehicleNo, row.pump, row.tripNo, row.entryNo));
 
   return (
     <>
@@ -162,7 +198,7 @@ function DieselReport({ period }) {
         <StatCard compact icon={Scale} tone={totals.due > 0 ? 'rose' : 'slate'} label="Due to Pumps" value={formatRupees(totals.due)} hint="Not paid at the pump" />
       </section>
 
-      <Panel title="Diesel Issued to Each Vehicle" count={byVehicle.length} hint="Tap a vehicle to see its diesel entries below.">
+      <Panel title="Diesel Issued to Each Vehicle" count={byVehicle.length} hint="Tap a vehicle to see its diesel entries below." exportName="diesel-by-vehicle">
         <ReportTable
           rows={byVehicle}
           rowKey={(row) => row.vehicleId}
@@ -189,7 +225,7 @@ function DieselReport({ period }) {
         />
       </Panel>
 
-      <Panel title="Diesel by Petrol Pump" count={byPump.length}>
+      <Panel title="Diesel by Petrol Pump" count={byPump.length} exportName="diesel-by-pump">
         <ReportTable
           rows={byPump}
           rowKey={(row) => row.partyId || 'none'}
@@ -215,6 +251,10 @@ function DieselReport({ period }) {
       <Panel
         title={chosen ? `Diesel Entries · ${chosen.vehicleNo}` : 'All Diesel Entries'}
         count={shown.length}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search vehicle, pump, trip"
+        exportName="diesel-entries"
         actions={chosen && <button type="button" className="btn-secondary btn-sm no-print" onClick={() => setVehicleId('')}><X size={14} /> All vehicles</button>}
       >
         <ReportTable
@@ -312,6 +352,7 @@ function PartyLedgerReport({ partyId, onParty }) {
 
 /** One party's ledger; from–to narrows the rows and brings the earlier balance forward as the opening. */
 function LedgerPanel({ partyId, onClose }) {
+  const ref = useRef(null);
   const { data, loading, error } = useFetch(`/reports/party-ledger/${partyId}`, {}, null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -331,7 +372,7 @@ function LedgerPanel({ partyId, onClose }) {
   const td = 'px-3 py-2 first:pl-4 last:pr-4';
 
   return (
-    <section className="panel min-w-0">
+    <section className="panel min-w-0" ref={ref}>
       <div className="panel-header flex flex-wrap items-start justify-between gap-2 py-2.5">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-bold text-slate-900 md:text-base">{party.name}</h2>
@@ -341,6 +382,7 @@ function LedgerPanel({ partyId, onClose }) {
           <input type="date" className="input h-8 min-h-0 w-auto py-0 text-xs" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} aria-label="From" />
           <input type="date" className="input h-8 min-h-0 w-auto py-0 text-xs" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} aria-label="To" />
           {(from || to) && <button type="button" className="icon-btn" onClick={() => { setFrom(''); setTo(''); }} title="All dates" aria-label="All dates"><X size={15} /></button>}
+          {rows.length > 0 && <ExportButton targetRef={ref} name={`ledger-${party.name}`} />}
           <Link to={`/parties/${partyId}`} className="btn-secondary btn-sm"><ExternalLink size={14} /> Open</Link>
           <button type="button" className="btn-secondary btn-sm" onClick={onClose}><X size={14} /> Close</button>
         </div>
@@ -416,9 +458,15 @@ function LedgerPanel({ partyId, onClose }) {
 
 function TripReport({ period, onParty }) {
   const { data, loading, error } = useFetch('/reports/trips', periodParams(period), null);
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [partySearch, setPartySearch] = useState('');
   if (loading && !data) return <Loading />;
   if (!data) return <ErrorBox message={error} />;
-  const { totals, byVehicle, byParty } = data;
+  const { totals } = data;
+  const vehicleQuery = vehicleSearch.trim().toLowerCase();
+  const partyQuery = partySearch.trim().toLowerCase();
+  const byVehicle = data.byVehicle.filter((row) => matches(vehicleQuery, row.vehicleNo));
+  const byParty = data.byParty.filter((row) => matches(partyQuery, row.name));
   const hasMaterial = totals.materialSold > 0 || totals.materialCost > 0;
   const maxBilling = Math.max(...byVehicle.map((row) => row.billing), 0);
   const columns = (first) => [
@@ -450,11 +498,11 @@ function TripReport({ period, onParty }) {
         </section>
       )}
 
-      <Panel title="Trips by Vehicle" count={byVehicle.length}>
+      <Panel title="Trips by Vehicle" count={byVehicle.length} search={vehicleSearch} onSearch={setVehicleSearch} searchPlaceholder="Search vehicle no." exportName="trips-by-vehicle">
         <ReportTable
           rows={byVehicle}
           rowKey={(row) => row.vehicleId}
-          totals={totals}
+          totals={vehicleQuery ? null : totals}
           empty="No trips in this period"
           columns={columns({
             key: 'vehicle',
@@ -470,11 +518,11 @@ function TripReport({ period, onParty }) {
         />
       </Panel>
 
-      <Panel title="Trips by Party" count={byParty.length} hint="Tap a party to open its ledger.">
+      <Panel title="Trips by Party" count={byParty.length} hint="Tap a party to open its ledger." search={partySearch} onSearch={setPartySearch} searchPlaceholder="Search party" exportName="trips-by-party">
         <ReportTable
           rows={byParty}
           rowKey={(row) => row.partyId}
-          totals={totals}
+          totals={partyQuery ? null : totals}
           onRowClick={(row) => onParty(row.partyId)}
           empty="No trips in this period"
           columns={columns({ key: 'party', label: 'Party', main: true, render: (row) => <span className="font-semibold text-slate-800">{row.name}</span> })}
@@ -488,26 +536,34 @@ function TripReport({ period, onParty }) {
 
 function ExpenseReport({ period }) {
   const { data, loading, error } = useFetch('/reports/expenses', periodParams(period), null);
+  const [typeSearch, setTypeSearch] = useState('');
+  const [vehicleSearch, setVehicleSearch] = useState('');
   if (loading && !data) return <Loading />;
   if (!data) return <ErrorBox message={error} />;
-  const { totals, byCategory, byVehicle } = data;
-  const maxCategory = Math.max(...byCategory.map((row) => row.amount), 0);
-  const general = byVehicle.find((row) => !row.vehicleId);
+  const { totals } = data;
+  const maxCategory = Math.max(...data.byCategory.map((row) => row.amount), 0);
+  const general = data.byVehicle.find((row) => !row.vehicleId);
+  // The top expense card is for the whole period, whatever is searched
+  const top = data.byCategory[0];
+  const typeQuery = typeSearch.trim().toLowerCase();
+  const vehicleQuery = vehicleSearch.trim().toLowerCase();
+  const byCategory = data.byCategory.filter((row) => matches(typeQuery, row.category));
+  const byVehicle = data.byVehicle.filter((row) => matches(vehicleQuery, row.vehicleNo));
   return (
     <>
       <ErrorBox message={error} />
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-3">
         <StatCard compact icon={Wallet} tone="rose" label="Total Expenses" value={formatRupees(totals.amount)} hint={`${totals.count} entries`} />
-        <StatCard compact icon={Fuel} tone="amber" label="Top Expense" value={byCategory[0] ? byCategory[0].category : '—'} hint={byCategory[0] ? formatRupees(byCategory[0].amount) : ''} />
+        <StatCard compact icon={Fuel} tone="amber" label="Top Expense" value={top ? top.category : '—'} hint={top ? formatRupees(top.amount) : ''} />
         <StatCard compact icon={BookOpen} tone="slate" label="General / Office" value={formatRupees(general?.amount || 0)} hint="No vehicle" />
       </section>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="By Expense Type" count={byCategory.length}>
+        <Panel title="By Expense Type" count={byCategory.length} search={typeSearch} onSearch={setTypeSearch} searchPlaceholder="Search type" exportName="expenses-by-type">
           <ReportTable
             rows={byCategory}
             rowKey={(row) => row.category}
-            totals={totals}
+            totals={typeQuery ? null : totals}
             empty="No expenses in this period"
             columns={[
               {
@@ -523,11 +579,11 @@ function ExpenseReport({ period }) {
           />
         </Panel>
 
-        <Panel title="By Vehicle" count={byVehicle.length}>
+        <Panel title="By Vehicle" count={byVehicle.length} search={vehicleSearch} onSearch={setVehicleSearch} searchPlaceholder="Search vehicle no." exportName="expenses-by-vehicle">
           <ReportTable
             rows={byVehicle}
             rowKey={(row) => row.vehicleId || 'general'}
-            totals={totals}
+            totals={vehicleQuery ? null : totals}
             empty="No expenses in this period"
             columns={[
               {
@@ -548,37 +604,455 @@ function ExpenseReport({ period }) {
   );
 }
 
-/* ───────────── page ───────────── */
+/* ───────────── Tyre Puncture History ───────────── */
 
-const TABS = [
-  { key: 'diesel', label: 'Diesel', icon: Fuel },
-  { key: 'ledger', label: 'Party Ledger', shortLabel: 'Ledger', icon: BookOpen },
-  { key: 'trips', label: 'Trips', icon: Route },
-  { key: 'expenses', label: 'Expenses', icon: Wallet },
+function PunctureReport({ period }) {
+  // The vehicle filter goes to the server, so the cards, tables and totals are all for that vehicle
+  const [vehicleId, setVehicleId] = useState('');
+  const { data, loading, error } = useFetch('/reports/punctures', { ...periodParams(period), ...(vehicleId ? { vehicleId } : {}) }, null);
+  const { data: vehicleList } = useFetch('/vehicles', {}, []);
+  const vehicles = Array.isArray(vehicleList) ? vehicleList : [];
+  const chosenNo = vehicles.find((item) => item._id === vehicleId)?.vehicleNo || '';
+
+  const filter = (
+    <section className="no-print flex flex-wrap items-center gap-2">
+      <div className="w-full sm:w-72">
+        <VehicleSelect vehicles={vehicles} value={vehicleId} onChange={setVehicleId} allowEmpty emptyLabel="All Vehicles" includeSold id="puncture-vehicle" />
+      </div>
+      {vehicleId && <button type="button" className="btn-secondary btn-sm" onClick={() => setVehicleId('')}><X size={14} /> Clear Filter</button>}
+      {loading && data && <span className="text-xs text-slate-400">Updating…</span>}
+    </section>
+  );
+
+  if (loading && !data) return <>{filter}<Loading /></>;
+  if (!data) return <>{filter}<ErrorBox message={error} /></>;
+  const { totals, byVehicle, entries } = data;
+  const maxAmount = Math.max(...byVehicle.map((row) => row.amount), 0);
+  const shown = entries;
+  const shownTotal = shown.reduce((sum, row) => sum + row.amount, 0);
+  const worst = byVehicle[0];
+
+  return (
+    <>
+      {filter}
+      <ErrorBox message={error} />
+      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-3">
+        <StatCard compact icon={IndianRupee} tone="amber" label="Total Puncture Expense" value={formatRupees(totals.amount)} hint={periodText(period)} />
+        <StatCard compact icon={CircleDot} tone="rose" label="Punctures" value={formatNumber(totals.count, 0)} hint={`${totals.onTrips} on trips`} />
+        <StatCard compact icon={Truck} tone="slate" label="Most Punctures" value={worst ? worst.vehicleNo : '—'} hint={worst ? `${worst.count} · ${formatRupees(worst.amount)}` : ''} />
+      </section>
+
+      <Panel title="Punctures by Vehicle" count={byVehicle.length} hint="Tap a vehicle to see only its punctures below." exportName="punctures-by-vehicle">
+        <ReportTable
+          rows={byVehicle}
+          rowKey={(row) => row.vehicleId || 'none'}
+          selected={vehicleId}
+          onRowClick={(row) => setVehicleId(row.vehicleId === vehicleId ? '' : row.vehicleId)}
+          totals={totals}
+          empty="No tyre punctures in this period"
+          columns={[
+            {
+              key: 'vehicle',
+              label: 'Vehicle',
+              main: true,
+              render: (row) => <span className="inline-flex flex-col"><span className="font-mono font-semibold text-slate-800">{row.vehicleNo}</span><span className="hidden md:block"><Share value={row.amount} max={maxAmount} tone="bg-rose-500" /></span></span>,
+            },
+            { key: 'count', label: 'Punctures', align: 'right', render: (row) => row.count, total: (t) => t.count },
+            { key: 'amount', label: 'Expense', align: 'right', primary: true, render: (row) => formatRupees(row.amount), total: (t) => formatRupees(t.amount) },
+          ]}
+        />
+      </Panel>
+
+      <Panel
+        title={vehicleId ? `Puncture History · ${chosenNo}` : 'Puncture History'}
+        count={shown.length}
+        exportName="tyre-puncture-history"
+        actions={vehicleId && <button type="button" className="btn-secondary btn-sm no-print" onClick={() => setVehicleId('')}><X size={14} /> All vehicles</button>}
+      >
+        <ReportTable
+          rows={shown}
+          rowKey={(row) => row.id}
+          totals={{ amount: shownTotal }}
+          empty="No tyre punctures in this period"
+          columns={[
+            {
+              key: 'trip',
+              label: 'Trip No.',
+              main: true,
+              render: (row) => (
+                <span>
+                  {row.trip
+                    ? <><span className="font-mono font-semibold text-slate-800">{row.trip.tripNo}</span>{row.trip.route && <span className="ml-2 hidden text-[11px] text-slate-400 md:inline">{row.trip.route}</span>}</>
+                    : <span className="text-slate-400">No trip</span>}
+                  {/* Phones: the puncture date right beside the trip number (the Puncture Date column is the desktop's) */}
+                  <span className="ml-2 font-semibold text-slate-700 md:hidden">· {formatDate(row.date)}</span>
+                </span>
+              ),
+            },
+            { key: 'vehicle', label: 'Vehicle No.', render: (row) => <span className="font-mono">{row.vehicleNo}</span> },
+            // The date is already on the phone's top line, so it is not repeated in the small line below
+            { key: 'date', label: 'Puncture Date', render: (row) => <span className="font-semibold text-slate-800">{formatDate(row.date)}</span>, phoneHide: true },
+            { key: 'amount', label: 'Puncture Expense', align: 'right', primary: true, render: (row) => formatRupees(row.amount), total: (t) => formatRupees(t.amount) },
+          ]}
+        />
+      </Panel>
+    </>
+  );
+}
+
+/* ───────────── Vehicles (profit per vehicle, from the profit report) ───────────── */
+
+const OWNERSHIP_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'own', label: 'My vehicles' },
+  { key: 'hired', label: 'Hired' },
 ];
 
-/** Reports: diesel issued to each vehicle, party ledgers, trips and expenses for a period. */
-export default function BusinessReports() {
-  const [params, setParams] = useSearchParams();
-  const tab = TABS.some((item) => item.key === params.get('tab')) ? params.get('tab') : 'diesel';
-  const partyId = params.get('party') || '';
-  const [period, setPeriod] = useState({ month: currentMonthInput() });
+function VehicleReport({ period }) {
+  const { data, loading, error } = useFetch('/reports/profit', periodParams(period), null);
+  const [search, setSearch] = useState('');
+  const [ownership, setOwnership] = useState('all');
+  if (loading && !data) return <Loading />;
+  if (!data) return <ErrorBox message={error} />;
+  const totals = data.totals || {};
+  const query = search.trim().toLowerCase();
+  const rows = (data.vehicles || [])
+    .filter((row) => ownership === 'all' || row.ownership === ownership)
+    .filter((row) => !query || String(row.vehicleNo || '').toLowerCase().includes(query) || String(row.ownerName || '').toLowerCase().includes(query));
+  const filtered = Boolean(query) || ownership !== 'all';
+  const vehicleCosts = toNumber(totals.tripHireCost) + toNumber(totals.materialCost) + toNumber(totals.rentCost) + toNumber(totals.vehicleExpenses);
+  const minus = (value) => (value ? `− ${formatRupees(value)}` : '—');
 
-  const go = (next) => setParams(Object.fromEntries(Object.entries(next).filter(([, value]) => value)), { replace: true });
-  const openParty = (id) => go({ tab: 'ledger', party: id });
+  return (
+    <>
+      <ErrorBox message={error} />
+      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
+        <StatCard compact icon={IndianRupee} tone="emerald" label="Income" value={formatRupees(totals.income)} hint={`Trips ${formatRupees(totals.tripIncome)} · Rent ${formatRupees(totals.rentIncome)}`} />
+        <StatCard compact icon={Wallet} tone="rose" label="Vehicle Costs" value={formatRupees(vehicleCosts)} hint="Hire, material, rent and expenses" />
+        <StatCard compact icon={Building2} tone="slate" label="General Expenses" value={formatRupees(totals.generalExpenses)} hint="Office and other, no vehicle" />
+        <StatCard compact icon={TrendingUp} tone={toNumber(totals.profit) >= 0 ? 'blue' : 'rose'} label="Net Profit" value={formatRupees(totals.profit)} hint="Whole business" />
+      </section>
+
+      <Panel
+        title="Vehicle-wise Profit"
+        count={rows.length}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search vehicle no."
+        exportName="vehicle-report"
+        actions={<Segmented value={ownership} onChange={setOwnership} options={OWNERSHIP_FILTERS} />}
+        hint={filtered ? 'Totals are left out while a search or filter is on.' : 'Net business profit is the vehicles total less general / office expenses.'}
+      >
+        <ReportTable
+          rows={rows}
+          rowKey={(row) => row.vehicleId}
+          totals={filtered ? null : totals}
+          empty="No vehicles"
+          columns={[
+            {
+              key: 'vehicle',
+              label: 'Vehicle',
+              main: true,
+              render: (row) => (
+                <span className="inline-flex flex-col">
+                  <Link to={`/vehicles/${row.vehicleId}`} className="font-mono font-semibold text-blue-700 hover:underline">{row.vehicleNo}</Link>
+                  <span className="text-[11px] text-slate-500">{row.ownership === 'own' ? 'Mine' : `Hired · ${row.ownerName || ''}`}</span>
+                </span>
+              ),
+            },
+            { key: 'trips', label: 'Trips', align: 'right', render: (row) => row.trips || '—', total: (t) => t.trips },
+            { key: 'tripIncome', label: 'Trip Billing', align: 'right', render: (row) => rupees(row.tripIncome), total: (t) => formatRupees(t.tripIncome) },
+            { key: 'rentIncome', label: 'Rent Received', align: 'right', render: (row) => rupees(row.rentIncome), total: (t) => formatRupees(t.rentIncome), phoneHide: true },
+            { key: 'tripHireCost', label: 'Trip Hire', align: 'right', render: (row) => minus(row.tripHireCost), total: (t) => formatRupees(t.tripHireCost), phoneHide: true },
+            { key: 'materialCost', label: 'Material Cost', align: 'right', render: (row) => minus(row.materialCost), total: (t) => formatRupees(t.materialCost), phoneHide: true },
+            { key: 'rentCost', label: 'Rent Paid', align: 'right', render: (row) => minus(row.rentCost), total: (t) => formatRupees(t.rentCost), phoneHide: true },
+            { key: 'expenses', label: 'Expenses', align: 'right', render: (row) => minus(row.expenses), total: (t) => formatRupees(t.vehicleExpenses) },
+            {
+              key: 'profit',
+              label: 'Profit',
+              align: 'right',
+              primary: true,
+              render: (row) => <span className={`font-bold ${row.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatRupees(row.profit)}</span>,
+              total: (t) => formatRupees(toNumber(t.profit) + toNumber(t.generalExpenses)),
+            },
+          ]}
+        />
+      </Panel>
+    </>
+  );
+}
+
+/* ───────────── Payments (received from / paid to parties) ───────────── */
+
+const PAYMENT_TYPES = [
+  { key: 'all', label: 'All' },
+  { key: 'received', label: 'Received' },
+  { key: 'paid', label: 'Paid' },
+];
+const modeLabel = (mode) => PAYMENT_MODE_OPTIONS.find((option) => option.value === mode)?.label || mode || '—';
+
+function PaymentReport({ period }) {
+  // The payments list takes a from–to range, so a month is sent as its first and last day
+  const range = period.from ? { from: period.from, to: period.to } : monthBounds(period.month);
+  const { data, loading, error } = useFetch('/payments', { from: range.from, to: range.to }, null);
+  const [search, setSearch] = useState('');
+  const [type, setType] = useState('all');
+  const [mode, setMode] = useState('');
+  if (loading && !data) return <Loading />;
+  if (!data) return <ErrorBox message={error} />;
+  const all = Array.isArray(data) ? data : [];
+  const query = search.trim().toLowerCase();
+  const rows = all
+    .filter((row) => type === 'all' || row.type === type)
+    .filter((row) => !mode || row.mode === mode)
+    .filter((row) => !query || [row.partyId?.name, row.reference, row.notes].some((value) => String(value || '').toLowerCase().includes(query)));
+  const sumOf = (list, kind) => list.filter((row) => row.type === kind).reduce((sum, row) => sum + toNumber(row.amount), 0);
+  const received = sumOf(rows, 'received');
+  const paid = sumOf(rows, 'paid');
+
+  return (
+    <>
+      <ErrorBox message={error} />
+      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-3">
+        <StatCard compact icon={ArrowDownLeft} tone="emerald" label="Received" value={formatRupees(received)} hint={`${rows.filter((row) => row.type === 'received').length} payments`} />
+        <StatCard compact icon={ArrowUpRight} tone="rose" label="Paid" value={formatRupees(paid)} hint={`${rows.filter((row) => row.type === 'paid').length} payments`} />
+        <StatCard compact icon={Scale} tone="blue" label="Net" value={formatRupees(received - paid)} hint="Received minus paid" />
+      </section>
+
+      <Panel
+        title="Payments"
+        count={rows.length}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search party, reference"
+        exportName="payment-report"
+        actions={(
+          <>
+            <Segmented value={type} onChange={setType} options={PAYMENT_TYPES} />
+            <select className="input h-9 min-h-0 w-auto py-0 text-xs md:text-sm" value={mode} onChange={(event) => setMode(event.target.value)} aria-label="Payment mode">
+              <option value="">All modes</option>
+              {PAYMENT_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </>
+        )}
+      >
+        <ReportTable
+          rows={rows}
+          rowKey={(row) => row._id}
+          totals={{ received, paid }}
+          empty="No payments in this period"
+          columns={[
+            { key: 'date', label: 'Date', main: true, render: (row) => <span className="font-semibold text-slate-800">{formatDate(row.date)}</span> },
+            {
+              key: 'party',
+              label: 'Party',
+              render: (row) => (row.partyId?._id
+                ? <Link to={`/parties/${row.partyId._id}`} className="font-semibold text-blue-700 hover:underline">{row.partyId.name}</Link>
+                : '—'),
+            },
+            { key: 'mode', label: 'Mode', render: (row) => modeLabel(row.mode) },
+            { key: 'reference', label: 'Reference', render: (row) => row.reference || '—', phoneHide: true },
+            { key: 'received', label: 'Received', align: 'right', render: (row) => (row.type === 'received' ? <span className="font-semibold text-emerald-700">{formatRupees(row.amount)}</span> : '—'), total: (t) => formatRupees(t.received) },
+            { key: 'paid', label: 'Paid', align: 'right', render: (row) => (row.type === 'paid' ? <span className="font-semibold text-rose-700">{formatRupees(row.amount)}</span> : '—'), total: (t) => formatRupees(t.paid) },
+            {
+              key: 'amount',
+              label: 'Amount',
+              align: 'right',
+              primary: true,
+              phoneOnly: true,
+              render: (row) => <span className={row.type === 'received' ? 'text-emerald-700' : 'text-rose-700'}>{row.type === 'received' ? '+' : '−'} {formatRupees(row.amount)}</span>,
+              total: (t) => formatRupees(t.received - t.paid),
+            },
+          ]}
+        />
+      </Panel>
+    </>
+  );
+}
+
+/* ───────────── Monthly Hire (rent on monthly contracts) ───────────── */
+
+const DIRECTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'give_out', label: 'Given out' },
+  { key: 'hire_in', label: 'Hired in' },
+];
+const STATUS_TEXT = { running: 'Running', upcoming: 'Upcoming', ended: 'Ended' };
+
+function MonthlyHireReport({ period }) {
+  // Rent is worked out per month, so this report goes by month
+  const month = period.month || currentMonthInput();
+  const { data, loading, error } = useFetch('/contracts', { month }, null);
+  const [search, setSearch] = useState('');
+  const [direction, setDirection] = useState('all');
+  if (loading && !data) return <Loading />;
+  if (!data) return <ErrorBox message={error} />;
+  // Contracts with rent in this month
+  const inMonth = (Array.isArray(data) ? data : []).filter((row) => toNumber(row.monthAmount) > 0);
+  const query = search.trim().toLowerCase();
+  const rows = inMonth
+    .filter((row) => direction === 'all' || row.direction === direction)
+    .filter((row) => !query || [row.vehicleId?.vehicleNo, row.partyId?.name, row.contractNo].some((value) => String(value || '').toLowerCase().includes(query)));
+  const sumOf = (list, kind) => list.filter((row) => row.direction === kind).reduce((sum, row) => sum + toNumber(row.monthAmount), 0);
+  const toReceive = sumOf(rows, 'give_out');
+  const toPay = sumOf(rows, 'hire_in');
+
+  return (
+    <>
+      <ErrorBox message={error} />
+      <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-3">
+        <StatCard compact icon={ArrowDownLeft} tone="emerald" label="Rent to Receive" value={formatRupees(toReceive)} hint="Vehicles given out" />
+        <StatCard compact icon={ArrowUpRight} tone="rose" label="Rent to Pay" value={formatRupees(toPay)} hint="Vehicles hired in" />
+        <StatCard compact icon={Scale} tone="blue" label="Net Rent" value={formatRupees(toReceive - toPay)} hint={formatMonth(month)} />
+      </section>
+
+      <Panel
+        title="Monthly Hire Contracts"
+        count={rows.length}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search vehicle, party"
+        exportName="monthly-hire-report"
+        actions={<Segmented value={direction} onChange={setDirection} options={DIRECTIONS} />}
+        hint="Rent for each contract in this month, counted for the days it ran."
+      >
+        <ReportTable
+          rows={rows}
+          rowKey={(row) => row._id}
+          totals={{ toReceive, toPay }}
+          empty="No monthly hire in this month"
+          columns={[
+            {
+              key: 'vehicle',
+              label: 'Vehicle',
+              main: true,
+              render: (row) => (row.vehicleId?._id
+                ? <Link to={`/vehicles/${row.vehicleId._id}`} className="font-mono font-semibold text-blue-700 hover:underline">{row.vehicleId.vehicleNo}</Link>
+                : '—'),
+            },
+            { key: 'contract', label: 'Contract', render: (row) => <span className="font-mono">{row.contractNo}</span>, phoneHide: true },
+            { key: 'party', label: 'Party', render: (row) => row.partyId?.name || '—' },
+            { key: 'direction', label: 'Type', render: (row) => (row.direction === 'give_out' ? 'Given out' : 'Hired in') },
+            { key: 'period', label: 'Period', render: (row) => `${formatDate(row.startDate)} – ${row.endDate ? formatDate(row.endDate) : 'ongoing'}`, phoneHide: true },
+            { key: 'status', label: 'Status', render: (row) => STATUS_TEXT[row.status] || row.status, phoneHide: true },
+            { key: 'rate', label: 'Monthly Rate', align: 'right', render: (row) => formatRupees(row.monthlyRate), phoneHide: true },
+            { key: 'receive', label: 'To Receive', align: 'right', render: (row) => (row.direction === 'give_out' ? <span className="font-semibold text-emerald-700">{formatRupees(row.monthAmount)}</span> : '—'), total: (t) => formatRupees(t.toReceive) },
+            { key: 'pay', label: 'To Pay', align: 'right', render: (row) => (row.direction === 'hire_in' ? <span className="font-semibold text-rose-700">{formatRupees(row.monthAmount)}</span> : '—'), total: (t) => formatRupees(t.toPay) },
+            {
+              key: 'amount',
+              label: 'Rent',
+              align: 'right',
+              primary: true,
+              phoneOnly: true,
+              render: (row) => <span className={row.direction === 'give_out' ? 'text-emerald-700' : 'text-rose-700'}>{row.direction === 'give_out' ? '+' : '−'} {formatRupees(row.monthAmount)}</span>,
+              total: (t) => formatRupees(t.toReceive - t.toPay),
+            },
+          ]}
+        />
+      </Panel>
+    </>
+  );
+}
+
+/* ───────────── Reports dashboard and report pages ───────────── */
+
+const CARD_TONES = {
+  amber: { card: 'from-amber-50 to-orange-50 border-amber-200 hover:border-amber-300', icon: 'bg-amber-500' },
+  indigo: { card: 'from-indigo-50 to-violet-50 border-indigo-200 hover:border-indigo-300', icon: 'bg-indigo-600' },
+  rose: { card: 'from-rose-50 to-pink-50 border-rose-200 hover:border-rose-300', icon: 'bg-rose-600' },
+  blue: { card: 'from-blue-50 to-sky-50 border-blue-200 hover:border-blue-300', icon: 'bg-blue-600' },
+  teal: { card: 'from-teal-50 to-cyan-50 border-teal-200 hover:border-teal-300', icon: 'bg-teal-600' },
+  slate: { card: 'from-slate-50 to-gray-50 border-slate-200 hover:border-slate-300', icon: 'bg-slate-600' },
+  emerald: { card: 'from-emerald-50 to-teal-50 border-emerald-200 hover:border-emerald-300', icon: 'bg-emerald-600' },
+};
+
+/**
+ * Every report: its page at /reports/<slug>, its card on the Reports dashboard.
+ * period: 'range' (month or from–to), 'month' (month only) or null (no period).
+ */
+const REPORTS = [
+  { slug: 'diesel', title: 'Diesel Report', description: 'Diesel issued to each vehicle, by petrol pump, and every fill.', icon: Fuel, tone: 'amber', period: 'range', Report: DieselReport },
+  { slug: 'parties-ledger', title: 'Parties Ledger', description: 'What each party owes you, what you owe them, and their full ledger.', icon: BookOpen, tone: 'indigo', period: null, Report: PartyLedgerReport },
+  { slug: 'tyre-puncture', title: 'Tyre Puncture History', description: 'Every puncture with its trip, vehicle, date and cost.', icon: CircleDot, tone: 'rose', period: 'range', Report: PunctureReport },
+  { slug: 'trips', title: 'Trip Report', description: 'Trips, billing, received and unpaid by vehicle and by party.', icon: Route, tone: 'blue', period: 'range', Report: TripReport },
+  { slug: 'vehicles', title: 'Vehicle Report', description: 'Income, costs and profit of each vehicle.', icon: Truck, tone: 'teal', period: 'range', Report: VehicleReport },
+  { slug: 'expenses', title: 'Expense Report', description: 'Expenses by type and by vehicle, with each one’s share.', icon: Wallet, tone: 'slate', period: 'range', Report: ExpenseReport },
+  { slug: 'payments', title: 'Payment Report', description: 'Money received from and paid to parties, by mode.', icon: HandCoins, tone: 'emerald', period: 'range', Report: PaymentReport },
+  { slug: 'monthly-hire', title: 'Monthly Hire Report', description: 'Rent to receive and to pay on monthly hire contracts.', icon: CalendarClock, tone: 'indigo', period: 'month', Report: MonthlyHireReport },
+];
+
+// Links from before the report pages (/business-reports?tab=…) open the matching page
+const OLD_TABS = { diesel: 'diesel', ledger: 'parties-ledger', punctures: 'tyre-puncture', trips: 'trips', expenses: 'expenses' };
+
+/** Reports dashboard: one card per report; each opens its own page. */
+export default function BusinessReports() {
+  const [params] = useSearchParams();
+  const oldTab = OLD_TABS[params.get('tab')];
+  if (oldTab) {
+    const party = params.get('party');
+    return <Navigate to={`/reports/${oldTab}${oldTab === 'parties-ledger' && party ? `?party=${party}` : ''}`} replace />;
+  }
 
   return (
     <Page>
-      <PageHeader title="Reports" subtitle={tab === 'ledger' ? 'What each party owes you, and what you owe them' : `Business reports · ${periodText(period)}`}>
-        {tab !== 'ledger' && <PeriodPicker value={period} onChange={setPeriod} />}
-        <button type="button" className="btn-secondary no-print" onClick={() => window.print()}><Printer size={16} /> Print</button>
-      </PageHeader>
-      <Segmented value={tab} onChange={(key) => go({ tab: key, party: key === 'ledger' ? partyId : '' })} options={TABS} className="no-print" />
-
-      {tab === 'diesel' && <DieselReport period={period} />}
-      {tab === 'ledger' && <PartyLedgerReport partyId={partyId} onParty={openParty} />}
-      {tab === 'trips' && <TripReport period={period} onParty={openParty} />}
-      {tab === 'expenses' && <ExpenseReport period={period} />}
+      <PageHeader title="Reports" subtitle="Pick a report to open it" />
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {REPORTS.map(({ slug, title, description, icon: Icon, tone }) => {
+          const t = CARD_TONES[tone] || CARD_TONES.blue;
+          return (
+            <Link
+              key={slug}
+              to={`/reports/${slug}`}
+              className={`group flex items-start gap-3 rounded-2xl border-2 bg-gradient-to-br p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 md:p-5 ${t.card}`}
+            >
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${t.icon}`}>
+                <Icon size={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold text-slate-900 md:text-base">{title}</span>
+                <span className="mt-1 block text-xs leading-relaxed text-slate-600 md:text-[13px]">{description}</span>
+              </span>
+              <ChevronRight size={18} className="mt-0.5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-700" />
+            </Link>
+          );
+        })}
+      </section>
     </Page>
   );
+}
+
+/** One report on its own page: title, back to the dashboard, its period and the report. */
+export function ReportPage() {
+  const { report } = useParams();
+  const [params, setParams] = useSearchParams();
+  const [period, setPeriod] = useState({ month: currentMonthInput() });
+  const config = REPORTS.find((item) => item.slug === report);
+  if (!config) return <Navigate to="/business-reports" replace />;
+
+  const { Report } = config;
+  const partyId = params.get('party') || '';
+  // In the ledger, picking a party keeps it in the address (?party=), so a refresh reopens it
+  const openParty = (id) => setParams(id ? { party: id } : {}, { replace: true });
+  const subtitle = config.period === 'range' ? periodText(period) : config.period === 'month' ? formatMonth(period.month || currentMonthInput()) : config.description;
+
+  return (
+    <Page>
+      <div className="no-print">
+        <Link to="/business-reports" className="btn-secondary btn-sm"><ArrowLeft size={15} /> Back to Reports</Link>
+      </div>
+      <PageHeader title={config.title} subtitle={subtitle}>
+        {config.period === 'range' && <PeriodPicker value={period} onChange={setPeriod} />}
+        {config.period === 'month' && <MonthFilter value={period.month || currentMonthInput()} onChange={(month) => setPeriod({ month })} />}
+        <button type="button" className="btn-secondary no-print" onClick={() => window.print()}><Printer size={16} /> Print</button>
+      </PageHeader>
+      <ReportBody key={config.slug} Report={Report} period={period} partyId={partyId} onParty={openParty} slug={config.slug} />
+    </Page>
+  );
+}
+
+// The report itself; a party tapped outside the ledger opens the Parties Ledger page on that party
+function ReportBody({ Report, period, partyId, onParty, slug }) {
+  const go = useNavigate();
+  const openParty = slug === 'parties-ledger' ? onParty : (id) => go(`/reports/parties-ledger?party=${id}`);
+  return <div className="space-y-3.5 md:space-y-4"><Report period={period} partyId={partyId} onParty={openParty} /></div>;
 }
